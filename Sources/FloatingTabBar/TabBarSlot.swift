@@ -15,14 +15,15 @@ struct TabBarSlot: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: item.systemImage)
-        .font(.system(size: style.iconSize, weight: .medium))
+        .font(.system(size: style.metrics.iconSize, weight: .medium))
         .symbolVariant(active ? .fill : .none)
-        .foregroundStyle(active ? style.label : style.secondaryLabel)
+        .foregroundStyle(active ? style.colors.label : style.colors.secondaryLabel)
         // Something waiting: the dot on the icon's shoulder
         .overlay(alignment: .topTrailing) {
           if dot {
-            Circle().fill(style.badge).frame(width: 8, height: 8)
-              .offset(x: 4, y: -3)
+            Circle().fill(style.colors.badge)
+              .frame(width: style.metrics.badgeDotSize, height: style.metrics.badgeDotSize)
+              .offset(style.metrics.badgeDotOffset)
               .transition(.scale.combined(with: .opacity))
           }
         }

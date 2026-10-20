@@ -17,9 +17,9 @@ struct GlassCircleButton: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: systemImage)
-        .font(.system(size: style.buttonIconSize, weight: .regular))
-        .foregroundStyle(style.label)
-        .frame(width: style.height, height: style.height)
+        .font(.system(size: style.metrics.buttonIconSize, weight: .regular))
+        .foregroundStyle(style.colors.label)
+        .frame(width: style.metrics.height, height: style.metrics.height)
         .contentShape(Circle())
     }
     .buttonStyle(.plain)

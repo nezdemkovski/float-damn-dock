@@ -22,7 +22,7 @@ struct SideBarHosting<Bar: View>: View {
     if #available(iOS 27.1, *) {
       ColumnAwareSideBar(host: host, bar: bar)
     } else if host == .beside {
-      bar.padding(.horizontal, style.verticalPadding)
+      bar.padding(.horizontal, style.metrics.verticalPadding)
     }
   }
 }
@@ -39,7 +39,7 @@ private struct ColumnAwareSideBar<Bar: View>: View {
     case (.column, let edge?):
       inColumn(edge: edge)
     case (.beside, nil):
-      bar.padding(.horizontal, style.verticalPadding)
+      bar.padding(.horizontal, style.metrics.verticalPadding)
     default:
       EmptyView()
     }
@@ -52,7 +52,7 @@ private struct ColumnAwareSideBar<Bar: View>: View {
         bar
           .frame(width: column)
           .padding(.top, statusBottom(in: proxy, column: column, edge: edge) + 12)
-          .padding(.bottom, max(outer.safeAreaInsets.bottom, style.horizontalPadding))
+          .padding(.bottom, max(outer.safeAreaInsets.bottom, style.metrics.horizontalPadding))
           .frame(
             maxWidth: .infinity, maxHeight: .infinity,
             alignment: edge == .trailing ? .bottomTrailing : .bottomLeading
@@ -89,7 +89,7 @@ struct SideBar<Tab: Hashable>: View {
   @Namespace private var glassNamespace
 
   var body: some View {
-    VStack(spacing: style.gap) {
+    VStack(spacing: style.metrics.gap) {
       pill
       if search != nil {
         GlassCircleButton(
@@ -104,18 +104,18 @@ struct SideBar<Tab: Hashable>: View {
         )
       }
     }
-    .animation(.smooth(duration: 0.25), value: search != nil)
+    .animation(style.motion.searchButton, value: search != nil)
   }
 
   private var pill: some View {
-    let shape = RoundedRectangle(cornerRadius: style.height / 2, style: .continuous)
-    let height = CGFloat(model.menu.count) * (style.height - 2 * style.inset) + 2 * style.inset
+    let shape = RoundedRectangle(cornerRadius: style.metrics.height / 2, style: .continuous)
+    let height = CGFloat(model.menu.count) * (style.metrics.height - 2 * style.metrics.inset) + 2 * style.metrics.inset
     // The same surface as the bottom pill: clear glass at its final size in its own
     // container, the icons over it outside the glass pass so they keep their full contrast
     return GlassEffectContainer(spacing: 0) {
       Color.clear
-        .frame(width: style.height, height: height)
-        .glassEffect(.regular.tint(style.glassTint.opacity(style.barTintOpacity)).interactive(), in: shape)
+        .frame(width: style.metrics.height, height: height)
+        .glassEffect(.regular.tint(style.colors.glassTint.opacity(style.colors.barTintOpacity)).interactive(), in: shape)
         .glassEffectID("navigation", in: glassNamespace)
     }
       .overlay {
@@ -134,7 +134,7 @@ struct SideBar<Tab: Hashable>: View {
         ) {
           model.open($0, selection: $selection)
         }
-        .padding(style.inset)
+        .padding(style.metrics.inset)
       }
       .clipShape(shape)
       .scrubSurface(in: shape)

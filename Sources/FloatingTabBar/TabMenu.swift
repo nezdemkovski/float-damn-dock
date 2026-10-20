@@ -18,17 +18,17 @@ struct TabMenu<Tab: Hashable>: View {
     case header, tab(Tab)
   }
 
-  private var labelSize: CGFloat { style.menuLabelSize * textScale }
+  private var labelSize: CGFloat { style.metrics.menuLabelSize * textScale }
 
   var body: some View {
     VStack(spacing: 0) {
       if let header = model.menuHeader {
         headerRow(header)
           .scrubItem(Item.header)
-        Rectangle().fill(style.separator).frame(height: 1)
-          .padding(.horizontal, style.menuPadding)
+        Rectangle().fill(style.colors.separator).frame(height: 1)
+          .padding(.horizontal, style.metrics.menuPadding)
       }
-      VStack(spacing: 2) {
+      VStack(spacing: style.metrics.menuRowSpacing) {
         // Keep the collection stable while the menu tracks a finger.
         ForEach(model.menu.indices, id: \.self) { index in
           let tab = model.menu[index]
@@ -36,7 +36,7 @@ struct TabMenu<Tab: Hashable>: View {
             .scrubItem(Item.tab(tab))
         }
       }
-      .padding(style.menuPadding)
+      .padding(style.metrics.menuPadding)
     }
     .scrubGroup(
       Item.self, selected: .tab(selection), highlight: .capsule, follows: .item,
@@ -60,9 +60,9 @@ struct TabMenu<Tab: Hashable>: View {
     .buttonStyle(.plain)
     .accessibilityLabel(header.title)
     .accessibilityIdentifier("sections.\(header.identifier)")
-    .animation(reveal(delay: 0.04)) { content in
+    .animation(reveal(delay: style.motion.headerDelay)) { content in
       content.opacity(expanded ? 1 : 0)
-        .blur(radius: expanded || reduceMotion ? 0 : 3)
+        .blur(radius: expanded || reduceMotion ? 0 : style.motion.rowsBlur)
     }
     .accessibilityHidden(!unfolded)
   }
@@ -74,41 +74,41 @@ struct TabMenu<Tab: Hashable>: View {
     return Button {
       pick(.tab(tab))
     } label: {
-      HStack(spacing: 12) {
+      HStack(spacing: style.metrics.menuIconSpacing) {
         Image(systemName: item.systemImage)
-          .font(.system(size: style.iconSize - 1, weight: .medium))
+          .font(.system(size: style.metrics.iconSize - 1, weight: .medium))
           .symbolVariant(active ? .fill : .none)
-          .frame(width: 22)
+          .frame(width: style.metrics.menuIconWidth)
         Text(item.title).font(.system(size: labelSize, weight: .medium))
         Spacer(minLength: 8)
         if item.badge > 0 {
           Text(item.badge.formatted())
             .font(.system(.caption, weight: .bold).monospacedDigit())
-            .foregroundStyle(style.onBadge)
+            .foregroundStyle(style.colors.onBadge)
             .padding(.horizontal, 6)
             .frame(minWidth: 21, minHeight: 21)
-            .background(style.badgeFill, in: Capsule())
+            .background(style.colors.badgeFill, in: Capsule())
         }
       }
-      .foregroundStyle(style.label)
+      .foregroundStyle(style.colors.label)
       .padding(.horizontal, 14)
-      .frame(minHeight: style.menuRowHeight)
+      .frame(minHeight: style.metrics.menuRowHeight)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .accessibilityAddTraits(active ? .isSelected : [])
     .accessibilityValue(item.badge > 0 ? item.badge.formatted() : "")
     .accessibilityIdentifier("sections.\(TabBarModel<Tab>.identifier(tab))")
-    .animation(reveal(delay: 0.06 + Double(index) * 0.018)) { content in
+    .animation(reveal(delay: style.motion.firstRowDelay + Double(index) * style.motion.rowStagger)) { content in
       content.opacity(expanded ? 1 : 0)
-        .blur(radius: expanded || reduceMotion ? 0 : 3)
+        .blur(radius: expanded || reduceMotion ? 0 : style.motion.rowsBlur)
     }
     .accessibilityHidden(!unfolded)
   }
 
   private func reveal(delay: Double) -> Animation? {
     guard !reduceMotion else { return nil }
-    return expanded ? .easeOut(duration: 0.16).delay(delay) : .easeOut(duration: 0.1)
+    return expanded ? style.motion.rowsIn.delay(delay) : style.motion.rowsOut
   }
 
   /// Opens the tab (or the header's place) and folds the menu. A lift where a held finger

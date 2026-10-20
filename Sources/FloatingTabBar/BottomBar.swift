@@ -1,16 +1,5 @@
 import SwiftUI
 
-/// Shared timings for the press, surface and returning bar content.
-private enum Motion {
-  static let press = Animation.easeOut(duration: 0.06)
-  static let open = Animation.spring(duration: 0.38, bounce: 0.12)
-  static let heldOpen = Animation.smooth(duration: 0.28)
-  static let close = Animation.smooth(duration: 0.24)
-  static let barFade = Animation.easeOut(duration: 0.12)
-  /// The icons come back a beat after the card starts folding, so they land in the pill
-  static let iconsReturnDelay: TimeInterval = 0.06
-}
-
 /// The floating bar along the bottom: a glass pill of the pinned tabs with the open one under
 /// a lighter pill, the last slot unfolding the menu of every tab, and the round buttons beside
 /// it (the page's search, the app's accessory). Unfolding, the pill itself grows upward into
@@ -61,15 +50,15 @@ struct BottomBar<Tab: Hashable>: View {
   private var current: Slot { overflowSelected ? .more : .tab(selection) }
 
   var body: some View {
-    GlassEffectContainer(spacing: style.gap) { controls }
-      .padding(.horizontal, style.horizontalPadding)
-      .padding(.vertical, style.verticalPadding)
+    GlassEffectContainer(spacing: style.metrics.gap) { controls }
+      .padding(.horizontal, style.metrics.horizontalPadding)
+      .padding(.vertical, style.metrics.verticalPadding)
   }
 
   private var controls: some View {
     DockLayout(
       slots: model.pinned.count + 1, searchTakesSlot: reservesSearchSpace,
-      inset: style.inset, gap: style.gap, button: style.height
+      inset: style.metrics.inset, gap: style.metrics.gap, button: style.metrics.height
     ) {
       morphing
         .dockRole(.pill)
@@ -79,7 +68,7 @@ struct BottomBar<Tab: Hashable>: View {
         // origin; it leaves before the surface grows over it and comes back as it folds.
         GlassCircleButton(
           title: labels.search, systemImage: "magnifyingglass", identifier: "search",
-          visible: showsSearchButton, hideAnimation: reduceMotion ? nil : Motion.press,
+          visible: showsSearchButton, hideAnimation: reduceMotion ? nil : style.motion.press,
           namespace: glassNamespace
         ) {
           unfolded = false
@@ -97,17 +86,17 @@ struct BottomBar<Tab: Hashable>: View {
         .transition(.opacity)
       }
     }
-    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: search != nil)
+    .animation(reduceMotion ? nil : style.motion.searchButton, value: search != nil)
   }
 
   /// Both contents stay mounted while the glass morphs between two stable surfaces. The
   /// menu is attached to the top; the bar icons return before the closing card reaches it.
   private var morphing: some View {
     let hitShape = RoundedRectangle(
-      cornerRadius: expanded ? style.menuCornerRadius : style.height / 2,
+      cornerRadius: expanded ? style.metrics.menuCornerRadius : style.metrics.height / 2,
       style: .continuous
     )
-    let openHeight = max(menuHeight, style.height)
+    let openHeight = max(menuHeight, style.metrics.height)
     return ZStack(alignment: .bottom) {
       GlassEffectContainer(spacing: 0) {
         // Keep both endpoints at their final geometry and let Liquid Glass morph between
@@ -116,19 +105,19 @@ struct BottomBar<Tab: Hashable>: View {
         if expanded {
           glassSurface(
             height: openHeight,
-            tint: style.glassTint.opacity(style.menuTintOpacity),
-            shape: RoundedRectangle(cornerRadius: style.menuCornerRadius, style: .continuous)
+            tint: style.colors.glassTint.opacity(style.colors.menuTintOpacity),
+            shape: RoundedRectangle(cornerRadius: style.metrics.menuCornerRadius, style: .continuous)
           )
         } else {
           glassSurface(
-            height: style.height,
-            tint: style.glassTint.opacity(unfolded ? style.menuTintOpacity : style.barTintOpacity),
-            shape: RoundedRectangle(cornerRadius: style.height / 2, style: .continuous)
+            height: style.metrics.height,
+            tint: style.colors.glassTint.opacity(unfolded ? style.colors.menuTintOpacity : style.colors.barTintOpacity),
+            shape: RoundedRectangle(cornerRadius: style.metrics.height / 2, style: .continuous)
           )
         }
       }
     }
-    .frame(height: expanded ? openHeight : style.height, alignment: .bottom)
+    .frame(height: expanded ? openHeight : style.metrics.height, alignment: .bottom)
       .overlay(alignment: .top) {
         TabMenu(selection: $selection, unfolded: $unfolded, model: model, expanded: expanded)
           .fixedSize(horizontal: false, vertical: true)
@@ -136,14 +125,14 @@ struct BottomBar<Tab: Hashable>: View {
             if menuHeight != height { menuHeight = height }
           }
           .opacity(expanded ? 1 : 0)
-          .animation(reduceMotion ? nil : .easeOut(duration: expanded ? 0.16 : 0.12), value: expanded)
+          .animation(reduceMotion ? nil : expanded ? style.motion.rowsIn : style.motion.rowsOut, value: expanded)
       }
       .overlay {
         pill
           .allowsHitTesting(!unfolded)
-          .animation(reduceMotion ? nil : Motion.barFade.delay(expanded ? 0 : Motion.iconsReturnDelay)) { content in
+          .animation(reduceMotion ? nil : style.motion.iconsFade.delay(expanded ? 0 : style.motion.iconsReturnDelay)) { content in
             content.opacity(expanded ? 0 : 1)
-              .blur(radius: expanded && !reduceMotion ? 4 : 0)
+              .blur(radius: expanded && !reduceMotion ? style.motion.iconsBlur : 0)
           }
           .accessibilityElement(children: .contain)
           .accessibilityHidden(unfolded)
@@ -151,7 +140,11 @@ struct BottomBar<Tab: Hashable>: View {
       .frame(maxWidth: .infinity)
       .clipShape(hitShape)
       .scrubSurface(in: hitShape)
-      .scaleEffect(x: menuPhase == .pressing ? 0.84 : 1, y: menuPhase == .pressing ? 0.55 : 1, anchor: .bottomTrailing)
+      .scaleEffect(
+        x: menuPhase == .pressing ? style.motion.pressedScale.width : 1,
+        y: menuPhase == .pressing ? style.motion.pressedScale.height : 1,
+        anchor: .bottomTrailing
+      )
       .onChange(of: unfolded) { animateMenu() }
   }
 
@@ -169,7 +162,7 @@ struct BottomBar<Tab: Hashable>: View {
   private func animateMenu() {
     menuRequest += 1
     guard unfolded else {
-      withAnimation(reduceMotion ? nil : Motion.close) { menuPhase = .closed }
+      withAnimation(reduceMotion ? nil : style.motion.menuClose) { menuPhase = .closed }
       return
     }
     guard !reduceMotion else {
@@ -177,15 +170,15 @@ struct BottomBar<Tab: Hashable>: View {
       return
     }
     guard menuPhase != .open, scrub?.point == nil else {
-      withAnimation(Motion.heldOpen) { menuPhase = .open }
+      withAnimation(style.motion.menuOpenUnderFinger) { menuPhase = .open }
       return
     }
     let request = menuRequest
-    withAnimation(Motion.press, completionCriteria: .logicallyComplete) {
+    withAnimation(style.motion.press, completionCriteria: .logicallyComplete) {
       menuPhase = .pressing
     } completion: {
       guard request == menuRequest, unfolded else { return }
-      withAnimation(Motion.open) { menuPhase = .open }
+      withAnimation(style.motion.menuOpen) { menuPhase = .open }
     }
   }
 
@@ -219,8 +212,8 @@ struct BottomBar<Tab: Hashable>: View {
       case .more: unfolded = true
       }
     }
-    .padding(style.inset)
-    .frame(height: style.height)
+    .padding(style.metrics.inset)
+    .frame(height: style.metrics.height)
   }
 
   /// The last slot: the chevrons that unfold the rest, with the open tab's icon beside them
@@ -230,18 +223,18 @@ struct BottomBar<Tab: Hashable>: View {
     return Button {
       unfolded = true
     } label: {
-      HStack(spacing: 7) {
+      HStack(spacing: style.metrics.overflowIconSpacing) {
         if overflowSelected {
           Image(systemName: item.systemImage)
-            .font(.system(size: style.iconSize, weight: .medium))
+            .font(.system(size: style.metrics.iconSize, weight: .medium))
             .symbolVariant(.fill)
-            .foregroundStyle(style.label)
+            .foregroundStyle(style.colors.label)
             .transition(.scale(scale: 0.6).combined(with: .opacity))
         }
         // Small and light beside an icon, a little larger on its own
         Image(systemName: "chevron.up.chevron.down")
           .font(.system(size: overflowSelected ? 9 : 13, weight: .medium))
-          .foregroundStyle(overflowSelected ? style.tertiaryLabel : style.secondaryLabel)
+          .foregroundStyle(overflowSelected ? style.colors.tertiaryLabel : style.colors.secondaryLabel)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .contentShape(Capsule())

@@ -97,8 +97,8 @@ private struct SearchOffer: ViewModifier {
       .safeAreaBar(edge: .bottom, spacing: 0) {
         if showsField {
           field
-            .padding(.horizontal, style.horizontalPadding)
-            .padding(.vertical, style.verticalPadding)
+            .padding(.horizontal, style.metrics.horizontalPadding)
+            .padding(.vertical, style.metrics.verticalPadding)
         }
       }
   }
@@ -157,15 +157,15 @@ private struct DefaultSearchField: View {
   @Environment(\.floatingTabBarLabels) private var labels
 
   var body: some View {
-    HStack(spacing: style.gap) {
+    HStack(spacing: style.metrics.gap) {
       HStack(spacing: 12) {
         Image(systemName: "magnifyingglass")
           .font(.system(.body, weight: .medium))
-          .foregroundStyle(style.secondaryLabel)
+          .foregroundStyle(style.colors.secondaryLabel)
         TextField(field.prompt, text: field.text)
           .focused($focused)
           .textFieldStyle(.plain)
-          .foregroundStyle(style.label)
+          .foregroundStyle(style.colors.label)
           .autocorrectionDisabled()
           .submitLabel(.search)
           .onSubmit { focused = false }
@@ -173,25 +173,25 @@ private struct DefaultSearchField: View {
         if !field.text.wrappedValue.isEmpty {
           Button(labels.clearSearch, systemImage: "xmark.circle.fill", role: .cancel) { field.text.wrappedValue = "" }
             .labelStyle(.iconOnly)
-            .foregroundStyle(style.tertiaryLabel)
+            .foregroundStyle(style.colors.tertiaryLabel)
             .buttonStyle(.plain)
         }
       }
       .padding(.horizontal, 16)
       .frame(maxWidth: .infinity)
-      .frame(height: style.height)
+      .frame(height: style.metrics.height)
       .contentShape(.capsule)
-      .glassEffect(.regular.tint(style.glassTint.opacity(style.barTintOpacity)).interactive(), in: .capsule)
+      .glassEffect(.regular.tint(style.colors.glassTint.opacity(style.colors.barTintOpacity)).interactive(), in: .capsule)
       .simultaneousGesture(TapGesture().onEnded { focused = true })
       Button(action: field.close) {
         Image(systemName: "xmark")
           .font(.system(.body, weight: .medium))
-          .foregroundStyle(style.label)
-          .frame(width: style.height, height: style.height)
+          .foregroundStyle(style.colors.label)
+          .frame(width: style.metrics.height, height: style.metrics.height)
           .contentShape(Circle())
       }
       .buttonStyle(.plain)
-      .glassEffect(.regular.tint(style.glassTint.opacity(style.barTintOpacity)).interactive(), in: .circle)
+      .glassEffect(.regular.tint(style.colors.glassTint.opacity(style.colors.barTintOpacity)).interactive(), in: .circle)
       .accessibilityLabel(labels.closeSearch)
       .accessibilityIdentifier("tabbar.search.close")
     }

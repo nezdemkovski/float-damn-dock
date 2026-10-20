@@ -85,12 +85,6 @@ public enum ScrubFollow: Sendable {
 /// of its lifts
 @MainActor @Observable
 public final class ScrubSession {
-  /// A finger held this long without sliding shows the light, so a quick tap does not flash it
-  private static let feedbackDelay = Duration.milliseconds(120)
-  /// A slide shorter than this is still a tap
-  private static let tapSlop: CGFloat = 8
-  /// After a hold, the finger has to slide this far before it hovers and picks again
-  private static let restSlop: CGFloat = 12
 
   public private(set) var point: CGPoint?
   public private(set) var lastPoint: CGPoint?
@@ -109,16 +103,17 @@ public final class ScrubSession {
 
   public init() {}
 
-  func move(from start: CGPoint, to point: CGPoint) {
+  /// The finger moved; `tuning` says what counts as a slide and how soon it shows
+  func move(from start: CGPoint, to point: CGPoint, tuning: FloatingTabBarStyle.Scrub = .init()) {
     let began = self.point == nil
     guard self.point != point else { return }
     lastPoint = point
     self.point = point
-    if let origin = restOrigin, distance(origin, point) >= Self.restSlop {
+    if let origin = restOrigin, distance(origin, point) >= tuning.restSlop {
       restOrigin = nil
       isResting = false
     }
-    if distance(start, point) >= Self.tapSlop {
+    if distance(start, point) >= tuning.tapSlop {
       moved = true
       if !showsFeedback {
         feedbackTask?.cancel()
@@ -128,7 +123,7 @@ public final class ScrubSession {
     } else if began {
       feedbackTask?.cancel()
       feedbackTask = Task { @MainActor [weak self] in
-        do { try await Task.sleep(for: Self.feedbackDelay) } catch { return }
+        do { try await Task.sleep(for: tuning.feedbackDelay) } catch { return }
         guard let self, self.point != nil else { return }
         self.showsFeedback = true
       }
@@ -216,6 +211,7 @@ extension EnvironmentValues {
 private struct ScrubSurface<Surface: Shape>: ViewModifier {
   let shape: Surface
   @Environment(\.scrubSession) private var session
+  @Environment(\.floatingTabBarStyle) private var style
 
   @ViewBuilder func body(content: Content) -> some View {
     if let session {
@@ -223,7 +219,7 @@ private struct ScrubSurface<Surface: Shape>: ViewModifier {
         .overlay { ScrubLight(session: session, space: session.space).clipShape(shape) }
         .highPriorityGesture(
           DragGesture(minimumDistance: 0, coordinateSpace: .named(session.space))
-            .onChanged { session.move(from: $0.startLocation, to: $0.location) }
+            .onChanged { session.move(from: $0.startLocation, to: $0.location, tuning: style.scrub) }
             .onEnded { _ in session.lift() }
         )
     } else {
@@ -240,29 +236,29 @@ private struct ScrubLight: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.floatingTabBarStyle) private var style
 
-  private static let radius: CGFloat = 130
-
   var body: some View {
     GeometryReader { proxy in
+      let radius = style.scrub.lightRadius
+      let intensity = style.scrub.lightIntensity
       let bounds = proxy.frame(in: .named(space))
       let point = session.point ?? session.lastPoint ?? CGPoint(x: bounds.midX, y: bounds.midY)
       let inside = session.showsFeedback && (session.point.map { bounds.contains($0) } ?? false)
       Circle()
         .fill(RadialGradient(
           stops: [
-            .init(color: style.glow.opacity(0.09), location: 0),
-            .init(color: style.glow.opacity(0.055), location: 0.3),
-            .init(color: style.glow.opacity(0.018), location: 0.65),
-            .init(color: style.glow.opacity(0), location: 1),
+            .init(color: style.colors.glow.opacity(intensity), location: 0),
+            .init(color: style.colors.glow.opacity(intensity * 0.61), location: 0.3),
+            .init(color: style.colors.glow.opacity(intensity * 0.2), location: 0.65),
+            .init(color: style.colors.glow.opacity(0), location: 1),
           ],
-          center: .center, startRadius: 0, endRadius: Self.radius
+          center: .center, startRadius: 0, endRadius: radius
         ))
-        .frame(width: Self.radius * 2, height: Self.radius * 2)
+        .frame(width: radius * 2, height: radius * 2)
         .position(x: point.x - bounds.minX, y: point.y - bounds.minY)
         .animation(nil, value: point)
         .blendMode(.plusLighter)
         .opacity(inside && !reduceTransparency ? 1 : 0)
-        .animation(.easeOut(duration: 0.3), value: inside)
+        .animation(style.scrub.lightFade, value: inside)
     }
     .allowsHitTesting(false)
     .accessibilityHidden(true)
@@ -315,9 +311,6 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
     return id
   }
 
-  /// Only the bar rides with a drag; menu rows and committed selections change immediately.
-  private static var ride: Animation { .spring(duration: 0.22, bounce: 0) }
-
   func body(content: Content) -> some View {
     let space = space
     return content
@@ -331,7 +324,7 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
       // With no surface around it, the group takes its own touches
       .highPriorityGesture(
         DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
-          .onChanged { session.move(from: $0.startLocation, to: $0.location) }
+          .onChanged { session.move(from: $0.startLocation, to: $0.location, tuning: style.scrub) }
           .onEnded { _ in session.lift() },
         isEnabled: isEnabled && ownsTouches
       )
@@ -348,7 +341,7 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
       // A finger resting on an item that answers a hold holds it
       .task(id: hovered) {
         guard let held = hovered, holds.contains(held) else { return }
-        do { try await Task.sleep(for: style.holdDuration) } catch { return }
+        do { try await Task.sleep(for: style.scrub.holdDuration) } catch { return }
         guard hovered == held else { return }
         session.hold()
         holdsFired += 1
@@ -381,15 +374,18 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
     let inside = point.map { CGRect(origin: .zero, size: store.bounds.size).contains($0) } ?? false
     ZStack(alignment: .topLeading) {
       if let frame = highlightFrame(finger: inside ? point : nil, isScrubbing: isScrubbing) {
-        highlight.fill(style.highlight)
+        highlight.fill(style.colors.highlight)
           .frame(width: frame.width, height: frame.height)
           .position(x: frame.midX, y: frame.midY)
           // A held item gains a little separation without moving its measured frame.
           // Keeping the geometry fixed avoids feedback loops while the finger scrubs.
-          .brightness(isScrubbing ? 0.035 : 0)
-          .shadow(color: style.glow.opacity(isScrubbing ? 0.16 : 0), radius: 5, y: 1)
-          .animation(.easeOut(duration: 0.1), value: isScrubbing)
-          .animation(hovered != nil && follows == .finger ? Self.ride : nil, value: frame)
+          .brightness(isScrubbing ? style.scrub.highlightBrightness : 0)
+          .shadow(
+            color: style.colors.glow.opacity(isScrubbing ? style.scrub.highlightShadowOpacity : 0),
+            radius: style.scrub.highlightShadowRadius, y: 1
+          )
+          .animation(style.scrub.highlightLift, value: isScrubbing)
+          .animation(hovered != nil && follows == .finger ? style.scrub.highlightRide : nil, value: frame)
       }
     }
     .allowsHitTesting(false)

@@ -36,17 +36,30 @@ List(results) { … }
 
 ## Styling
 
-Every color and metric lives in `FloatingTabBarStyle`, and each one has a system default:
+Everything that can be tuned lives in `FloatingTabBarStyle`, and each value has a default. It has four groups:
+
+- `colors`: labels, the highlight, the light under the finger, the glass tint and how strong it is, the scrim, badges.
+- `metrics`: the bar's height, insets, gaps and paddings, icon sizes, the badge dot, the menu's rows and corners.
+- `motion`: every animation and delay — the press, the pill growing into the menu and folding back, the icons leaving and returning, the rows coming in one after another, the scrim, the search button.
+- `scrub`: the finger — how long a rest takes to open a tab (`holdDuration`), how soon the highlight shows, what counts as a slide, how the highlight rides and lifts, and the light's reach and strength.
+
+Change only what differs, best as a preset of your own:
 
 ```swift
-var style = FloatingTabBarStyle()
-style.highlight = .white.opacity(0.14)
-style.glassTint = .black
-style.menuTintOpacity = 0.6
-style.height = 56
-style.badge = .orange
+extension FloatingTabBarStyle {
+  static var brand: Self {
+    var style = Self()
+    style.colors.highlight = .white.opacity(0.14)
+    style.colors.glassTint = .black
+    style.colors.menuTintOpacity = 0.6
+    style.metrics.height = 56
+    style.motion.menuOpen = .spring(duration: 0.3, bounce: 0.2)
+    style.scrub.holdDuration = .milliseconds(300)
+    return style
+  }
+}
 
-content.floatingTabBarStyle(style)
+content.floatingTabBarStyle(.brand)
 ```
 
 The bar's own words (More, the search button, the menu's scrim) come from `FloatingTabBarLabels`. The defaults are English, so pass localized labels with `floatingTabBarLabels(_:)`.

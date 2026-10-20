@@ -142,7 +142,7 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
       // turns into the menu, lies over this
       .overlay {
         if unfolded {
-          style.scrim
+          style.colors.scrim
             .ignoresSafeArea()
             .onTapGesture { unfolded = false }
             .transition(.opacity)
@@ -150,8 +150,8 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
             .accessibilityAddTraits(.isButton)
         }
       }
-      .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: unfolded)
-      .environment(\.floatingTabBarClearance, side ? 0 : style.dockHeight)
+      .animation(reduceMotion ? nil : style.motion.scrim, value: unfolded)
+      .environment(\.floatingTabBarClearance, side ? 0 : style.metrics.dockHeight)
       .environment(\.floatingTabSearchController, search)
       // Reserve the dock's space and extend the native progressive scroll-edge blur.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
