@@ -1,65 +1,181 @@
-# Float, damn dock!
+<h1 align="center">Float, damn dock!</h1>
 
-A floating Liquid Glass tab bar for SwiftUI, in place of the system's. Made for [Play, damn it!](https://playdamnit.com).
+<p align="center">
+  A floating Liquid Glass tab bar for SwiftUI that you can scrub with a finger.
+</p>
 
-- **Bottom (compact width):** a glass pill of your pinned tabs. Its last slot unfolds a menu with every tab: the pill grows into a card, and folds back the same way.
-- **Side (regular width):** the bar stands up beside the pages and holds every tab.
-- **Scrub:** hold a finger down and slide across the bar. The highlight rides under the finger, a soft light follows it, a tick marks each tab it crosses, and lifting opens the tab under it. Rest the finger on a tab, or a row of the menu, and it opens there with a haptic tap, without lifting (`holdDuration` in the style says how long). Rest on the last slot to unfold the menu, then keep sliding into it.
-- Tabs you have opened stay alive under the open one, so each keeps its place.
-- The open page can hand the bar a search. The bar gets a round search button and turns into the field.
+<p align="center">
+  <img src="https://img.shields.io/badge/iOS-26%2B-black?logo=apple" alt="iOS 26+">
+  <img src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
+  <img src="https://img.shields.io/badge/SwiftPM-compatible-brightgreen" alt="Swift Package Manager">
+</p>
 
-Requires iOS 26 and Swift 6.
+<table align="center">
+  <tr>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/media/bar-dark.png">
+        <img src=".github/media/bar-light.png" width="220" alt="The bar">
+      </picture>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/media/menu-dark.png">
+        <img src=".github/media/menu-light.png" width="220" alt="The menu">
+      </picture>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/media/library-dark.png">
+        <img src=".github/media/library-light.png" width="220" alt="A page with search">
+      </picture>
+    </td>
+    <td align="center">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/media/search-dark.png">
+        <img src=".github/media/search-light.png" width="220" alt="Searching">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">The bar</td>
+    <td align="center">The menu</td>
+    <td align="center">A page with search</td>
+    <td align="center">Searching</td>
+  </tr>
+</table>
+
+Built for [Play, damn it!](https://playdamnit.com), where it replaces the system tab bar.
+
+## Features
+
+- **A glass pill of your main tabs.** Its last slot holds everything else: tap it and the pill grows into a menu of every tab.
+- **Scrub.** Slide a finger across the bar or the menu. The highlight follows the finger, each tab you pass gives a haptic tick, and the tab opens when you lift the finger. Rest the finger on a tab and it opens right away.
+- **Side bar on iPad.** At regular width the bar stands at the side of the pages. On an iPhone Duo it sits in the system's bar column.
+- **Pages keep their state.** Every tab you opened stays alive, also when the bar moves between the bottom and the side.
+- **Search like `searchable`.** A page offers its search, and the bar shows a search button for it. The field belongs to the page.
+- **Every number can be tuned.** Colors, sizes, animations and gesture timings all live in one style, and each has a default.
 
 ## Installation
 
 ```swift
-.package(url: "https://github.com/nezdemkovski/float-damn-dock", from: "0.1.0")
+dependencies: [
+  .package(url: "https://github.com/nezdemkovski/float-damn-dock", from: "0.1.0"),
+],
+targets: [
+  .target(name: "App", dependencies: [
+    .product(name: "FloatDamnDock", package: "float-damn-dock"),
+  ]),
+]
 ```
 
-and add the `FloatDamnDock` product to your target.
+Requires iOS 26 and Swift 6.
 
-## Usage
+## Quick start
 
 ```swift
 import FloatDamnDock
+import SwiftUI
 
-FloatDamnDockView(selection: $tab, pinned: [.home, .search, .inbox], menu: Tab.allCases) { tab in
-  FloatDamnDockItem(tab.title, systemImage: tab.symbol, badge: tab == .inbox ? unread : 0)
-} page: { tab in
-  NavigationStack(path: $paths[tab]) { page(for: tab) }
+enum Tab: Hashable, CaseIterable {
+  case home, library, discover, inbox, settings
 }
-.accessory("New post", systemImage: "plus") { composing = true }
-.onReselect { tab in paths[tab] = NavigationPath() }
-.menuHeader("Profile", isPresented: user != nil) { showProfile() } label: { ProfileRow() }
+
+struct RootView: View {
+  @State private var tab = Tab.home
+
+  var body: some View {
+    FloatDamnDockView(
+      selection: $tab,
+      pinned: [.home, .library, .discover, .inbox],
+      menu: Tab.allCases
+    ) { tab in
+      FloatDamnDockItem(tab.title, systemImage: tab.symbol)
+    } page: { tab in
+      NavigationStack { page(for: tab) }
+    }
+  }
+}
 ```
 
-A page offers its search to the bar:
+`pinned` are the tabs in the bar, and `menu` lists every tab in the menu's order. If the open tab is not pinned, it shows in the last slot.
+
+## Guide
+
+### Badges
+
+```swift
+FloatDamnDockItem("Inbox", systemImage: "tray", badge: unread, badgeLabel: "Unread")
+```
+
+The bar shows a dot and the menu shows the count. `badgeLabel` is what VoiceOver reads for the dot.
+
+### Main action, reselect, menu header
+
+```swift
+FloatDamnDockView(...)
+  .accessory("New post", systemImage: "plus") { composing = true }
+  .onReselect { tab in paths[tab] = NavigationPath() }
+  .menuHeader("Profile", isPresented: user != nil) {
+    openProfile()
+  } label: {
+    ProfileRow(user: user)
+  }
+```
+
+- `accessory` adds a round button beside the bar.
+- `onReselect` runs when the user taps the tab that is already open, for example to pop back to the root.
+- `menuHeader` adds a row above the tabs in the menu, for a place that is not a tab.
+
+### Search
+
+A page offers its search. The bar then shows a search button, and the page shows the field while it is open:
 
 ```swift
 List(results) { … }
-  .floatDamnDockSearch("Search", text: $query, source: model)
+  .floatDamnDockSearch("Search games", text: $query, source: model)
 ```
 
-`floatDamnDockClearance` in the environment is the space the bottom bar covers. Scrolling pages run under it, behind the scroll-edge blur. A fixed canvas should reserve it.
+`source` tells one page's search from another's. To draw the field yourself, use a style, the same way as with `ButtonStyle`:
+
+```swift
+struct BrandSearchField: FloatDamnDockSearchFieldStyle {
+  func makeBody(configuration: FloatDamnDockSearchField) -> some View {
+    MySearchField(
+      configuration.prompt, text: configuration.text,
+      onClose: configuration.close, onFocusChange: configuration.focusChanged
+    )
+  }
+}
+
+root.floatDamnDockSearchFieldStyle(BrandSearchField())
+```
+
+### Placement
+
+```swift
+FloatDamnDockView(...).placement(.automatic)  // .bottom, .side
+```
+
+`.automatic` puts the bar at the bottom at compact width and at the side at regular width.
+
+### Pages under the bar
+
+Scrolling pages run under the bottom bar, behind the scroll-edge blur. A page that does not scroll can keep clear of the bar with the space the environment gives it:
+
+```swift
+@Environment(\.floatDamnDockClearance) private var clearance
+```
 
 ## Styling
 
-Everything that can be tuned lives in `FloatDamnDockStyle`, and each value has a default. It has four groups:
-
-- `colors`: labels, the highlight, the light under the finger, the glass tint and how strong it is, the scrim, badges.
-- `metrics`: the bar's height, insets, gaps and paddings, icon sizes, the badge dot, the menu's rows and corners.
-- `motion`: every animation and delay — the press, the pill growing into the menu and folding back, the icons leaving and returning, the rows coming in one after another, the scrim, the search button.
-- `scrub`: the finger — how long a rest takes to open a tab (`holdDuration`), how soon the highlight shows, what counts as a slide, how the highlight rides and lifts, and the light's reach and strength.
-
-Change only what differs, best as a preset of your own:
+Everything that can be tuned lives in `FloatDamnDockStyle`. Change only what you need, ideally in a preset of your own:
 
 ```swift
 extension FloatDamnDockStyle {
   static var brand: Self {
     var style = Self()
     style.colors.highlight = .white.opacity(0.14)
-    style.colors.glassTint = .black
-    style.colors.menuTintOpacity = 0.6
     style.metrics.height = 56
     style.motion.menuOpen = .spring(duration: 0.3, bounce: 0.2)
     style.scrub.holdDuration = .milliseconds(300)
@@ -67,31 +183,44 @@ extension FloatDamnDockStyle {
   }
 }
 
-content.floatDamnDockStyle(.brand)
+root.floatDamnDockStyle(.brand)
 ```
 
-The bar's own words (More, the search button, the menu's scrim) come from `FloatDamnDockLabels`. The defaults are English, so pass localized labels with `floatDamnDockLabels(_:)`.
+| Group | What it holds |
+| --- | --- |
+| `colors` | Labels, the highlight, the light under the finger, the glass tint and its strength, the scrim, badges |
+| `metrics` | Height, insets, gaps, paddings, icon sizes, the badge dot, the menu's rows and corners |
+| `motion` | The press, the menu opening and closing, the icons and rows fading, the scrim, the search button |
+| `scrub` | How long a rest takes to open a tab, how soon the highlight shows, what counts as a slide, the light |
 
-To use your own search field, write a `FloatDamnDockSearchFieldStyle` and set it with `.floatDamnDockSearchFieldStyle(MyFieldStyle())`, the way you would set a `ButtonStyle`. Its `makeBody(configuration:)` gets the page's prompt and binding. The field should take focus when it appears, call `focusChanged` as its focus changes, and call `close` to put the bar back.
+The bar's own words (More, Search, Close) are English by default. Pass your own with `floatDamnDockLabels(_:)`.
 
-The field belongs to the page, as with the system's `searchable`. The bar only learns which search the page offers. The page's `text` binding and `onFocusChange` callback never leave the page, so the field always uses the ones the page passed last.
+## Scrub on its own
 
-## Accessibility identifiers
+The finger gesture also works for any row of buttons:
+
+```swift
+HStack {
+  ForEach(options) { option in
+    OptionView(option).scrubItem(option.id)
+  }
+}
+.scrubGroup(Option.ID.self, selected: selection, highlight: .capsule, follows: .finger) {
+  selection = $0
+}
+```
+
+## Accessibility
+
+Every control keeps a real button for VoiceOver and keyboards, and Reduce Motion turns the animations off. UI tests can find the controls by these identifiers:
 
 | Element | Identifier |
 | --- | --- |
 | Tab in the bar | `tabbar.<tab>` |
-| Last slot (opens the menu) | `tabbar.more` |
+| Last slot | `tabbar.more` |
 | Search button | `tabbar.search` |
 | Accessory | `tabbar.<identifier>` |
 | Menu row | `sections.<tab>` |
 | Menu header | `sections.<identifier>` |
 
-`<tab>` is `String(describing: tab)`, so an enum case gives its name.
-
-## Scrub on its own
-
-```swift
-HStack { ForEach(items) { ItemView($0).scrubItem($0.id) } }
-  .scrubGroup(Item.ID.self, selected: selection, highlight: .capsule, follows: .finger) { selection = $0 }
-```
+`<tab>` is `String(describing: tab)`, so for an enum it is the case name.
