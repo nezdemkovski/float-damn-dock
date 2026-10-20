@@ -1,88 +1,64 @@
 import SwiftUI
 
-/// The pages with the floating bar stood up at their side. Where the system keeps a vertical
-/// bar (an open iPhone Duo), the bar lives in that column, at its foot as the system's own tabs
-/// would be, leaving the top to the status items and the pages' toolbar buttons, and the pages
-/// keep their full width; elsewhere it stands beside the pages.
-struct SideBarDock<Tab: Hashable, Pages: View>: View {
-  @Binding var selection: Tab
-  let model: TabBarModel<Tab>
-  /// What the open page searches, as the bottom bar gets it
-  let search: FloatingTabSearch?
-  @Binding var searching: Bool
-  @ViewBuilder let pages: Pages
-  @Environment(\.floatingTabBarStyle) private var style
-
-  var body: some View {
-    Group {
-      if #available(iOS 27.1, *) {
-        VerticalBarColumnDock(pages: searchablePages, bar: bar)
-      } else {
-        BesidePages(pages: searchablePages, bar: bar)
-      }
-    }
-    .onChange(of: search?.source) { searching = false }
-  }
-
-  private var bar: SideBar<Tab> {
-    SideBar(selection: $selection, model: model, search: search, searching: $searching)
-  }
-
-  /// The search field, floating at the foot of the pages while searching: the bar's column is
-  /// too narrow to hold it
-  private var searchablePages: some View {
-    pages.safeAreaBar(edge: .bottom, spacing: 0) {
-      if let search, searching {
-        BarSearchField(search: search, model: model) { searching = false }
-          .padding(.horizontal, style.horizontalPadding)
-          .padding(.vertical, style.verticalPadding)
-      }
-    }
-  }
+/// Where the side bar may stand
+enum SideBarHost {
+  /// In the vertical bar column the system keeps beside the pages (an open iPhone Duo): at
+  /// its foot as the system's own tabs would be, leaving the top to the status items and the
+  /// pages' toolbar buttons, the pages keeping their full width
+  case column
+  /// Beside the pages, where there is no such column. Not over them: a horizontal safe-area
+  /// inset does not reach through the navigation stacks, so the pages would run under the bar.
+  case beside
 }
 
-/// The bar beside the pages rather than over them: a horizontal safe-area inset does not reach
-/// through the navigation stacks, so the pages would run under the bar
-private struct BesidePages<Pages: View, Bar: View>: View {
-  let pages: Pages
-  let bar: Bar
+/// The side bar in one of its two places, or nothing when the system's column puts it in the
+/// other: the shell offers it in both, and exactly one shows it
+struct SideBarHosting<Bar: View>: View {
+  let host: SideBarHost
+  @ViewBuilder let bar: Bar
   @Environment(\.floatingTabBarStyle) private var style
 
   var body: some View {
-    HStack(spacing: 0) {
-      pages
+    if #available(iOS 27.1, *) {
+      ColumnAwareSideBar(host: host, bar: bar)
+    } else if host == .beside {
       bar.padding(.horizontal, style.verticalPadding)
     }
   }
 }
 
 @available(iOS 27.1, *)
-private struct VerticalBarColumnDock<Pages: View, Bar: View>: View {
-  let pages: Pages
+private struct ColumnAwareSideBar<Bar: View>: View {
+  let host: SideBarHost
   let bar: Bar
   @Environment(\.toolbarVerticalEdge) private var barEdge
   @Environment(\.floatingTabBarStyle) private var style
 
   var body: some View {
-    if let barEdge {
-      pages.overlay {
-        GeometryReader { outer in
-          let column = barEdge == .trailing ? outer.safeAreaInsets.trailing : outer.safeAreaInsets.leading
-          GeometryReader { proxy in
-            bar
-              .frame(width: column)
-              .padding(.top, statusBottom(in: proxy, column: column, edge: barEdge) + 12)
-              .padding(.bottom, max(outer.safeAreaInsets.bottom, style.horizontalPadding))
-              .frame(
-                maxWidth: .infinity, maxHeight: .infinity,
-                alignment: barEdge == .trailing ? .bottomTrailing : .bottomLeading
-              )
-          }
-          .ignoresSafeArea(.container, edges: [.top, .bottom, barEdge == .trailing ? .trailing : .leading])
-        }
+    switch (host, barEdge) {
+    case (.column, let edge?):
+      inColumn(edge: edge)
+    case (.beside, nil):
+      bar.padding(.horizontal, style.verticalPadding)
+    default:
+      EmptyView()
+    }
+  }
+
+  private func inColumn(edge: HorizontalEdge) -> some View {
+    GeometryReader { outer in
+      let column = edge == .trailing ? outer.safeAreaInsets.trailing : outer.safeAreaInsets.leading
+      GeometryReader { proxy in
+        bar
+          .frame(width: column)
+          .padding(.top, statusBottom(in: proxy, column: column, edge: edge) + 12)
+          .padding(.bottom, max(outer.safeAreaInsets.bottom, style.horizontalPadding))
+          .frame(
+            maxWidth: .infinity, maxHeight: .infinity,
+            alignment: edge == .trailing ? .bottomTrailing : .bottomLeading
+          )
       }
-    } else {
-      BesidePages(pages: pages, bar: bar)
+      .ignoresSafeArea(.container, edges: [.top, .bottom, edge == .trailing ? .trailing : .leading])
     }
   }
 

@@ -44,20 +44,15 @@ public struct FloatingTabView<Tab: Hashable, Page: View>: View {
   }
 
   public var body: some View {
+    TabShell(selection: $selection, model: model, page: page, side: side)
+  }
+
+  private var side: Bool {
     switch placement {
-    case .bottom: bottom
-    case .side: side
-    case .automatic:
-      if horizontalSizeClass == .regular { side } else { bottom }
+    case .bottom: false
+    case .side: true
+    case .automatic: horizontalSizeClass == .regular
     }
-  }
-
-  private var bottom: some View {
-    BottomTabShell(selection: $selection, model: model, page: page)
-  }
-
-  private var side: some View {
-    SideTabShell(selection: $selection, model: model, page: page)
   }
 }
 
@@ -109,14 +104,20 @@ extension FloatingTabView {
   }
 }
 
-/// The pages under the bottom bar; the system's bar, which would fold extra tabs into a "More"
-/// page, is not used at all
-private struct BottomTabShell<Tab: Hashable, Page: View>: View {
+/// The pages and the bar around them, along the bottom or at the side. The pages stand in
+/// the same place for both, so a change of placement (a window resized across the size
+/// classes, a Duo opened or closed) keeps every opened tab and its state; only the bar and
+/// what goes with it come and go. The system's bar, which would fold extra tabs into a "More"
+/// page, is not used at all.
+private struct TabShell<Tab: Hashable, Page: View>: View {
   @Binding var selection: Tab
   let model: TabBarModel<Tab>
   let page: (Tab) -> Page
+  let side: Bool
   @State private var unfolded = false
   @State private var search: FloatingTabSearch?
+  /// The side bar's search field is up (the bottom bar keeps its own)
+  @State private var searching = false
   /// The one finger the bar and the menu share, so a slide carries from one into the other
   @State private var scrub = ScrubSession()
   @Environment(\.floatingTabBarStyle) private var style
@@ -124,18 +125,22 @@ private struct BottomTabShell<Tab: Hashable, Page: View>: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    pages
-      .environment(\.floatingTabBarClearance, style.dockHeight)
-      // Reserve the dock's space and extend the native progressive scroll-edge blur.
-      .scrollEdgeEffectStyle(.soft, for: .bottom)
-      // Respect the keyboard safe area so the dock's input remains above the keyboard.
-      .safeAreaBar(edge: .bottom, spacing: 0) {
-        BottomBar(selection: $selection, unfolded: $unfolded, model: model, search: search)
-      }
-      .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-      .scrubSession(scrub)
-      .sensoryFeedback(.selection, trigger: selection)
-      .sensoryFeedback(.impact(weight: .light), trigger: unfolded)
+    HStack(spacing: 0) {
+      pages
+        .overlay {
+          if side { SideBarHosting(host: .column) { sideBar } }
+        }
+      if side { SideBarHosting(host: .beside) { sideBar } }
+    }
+    .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
+    .onChange(of: search?.source) { searching = false }
+    .onChange(of: side) {
+      unfolded = false
+      searching = false
+    }
+    .scrubSession(scrub)
+    .sensoryFeedback(.selection, trigger: selection)
+    .sensoryFeedback(.impact(weight: .light), trigger: unfolded)
   }
 
   private var pages: some View {
@@ -156,26 +161,25 @@ private struct BottomTabShell<Tab: Hashable, Page: View>: View {
         }
       }
       .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: unfolded)
+      .environment(\.floatingTabBarClearance, side ? 0 : style.dockHeight)
+      // Reserve the dock's space and extend the native progressive scroll-edge blur.
+      .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
+      // Respect the keyboard safe area so the dock's input remains above the keyboard.
+      .safeAreaBar(edge: .bottom, spacing: 0) {
+        if side {
+          // The side bar's column is too narrow for the field: it floats at the pages' foot
+          if let search, searching {
+            BarSearchField(search: search, model: model) { searching = false }
+              .padding(.horizontal, style.horizontalPadding)
+              .padding(.vertical, style.verticalPadding)
+          }
+        } else {
+          BottomBar(selection: $selection, unfolded: $unfolded, model: model, search: search)
+        }
+      }
   }
-}
 
-/// The pages with the bar stood up at their side, every tab in it, and the page's search at
-/// their foot
-private struct SideTabShell<Tab: Hashable, Page: View>: View {
-  @Binding var selection: Tab
-  let model: TabBarModel<Tab>
-  let page: (Tab) -> Page
-  @State private var search: FloatingTabSearch?
-  @State private var searching = false
-  /// The finger the bar's slide follows
-  @State private var scrub = ScrubSession()
-
-  var body: some View {
-    SideBarDock(selection: $selection, model: model, search: search, searching: $searching) {
-      RetainedTabPages(selection: selection, page: page)
-    }
-    .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-    .scrubSession(scrub)
-    .sensoryFeedback(.selection, trigger: selection)
+  private var sideBar: SideBar<Tab> {
+    SideBar(selection: $selection, model: model, search: search, searching: $searching)
   }
 }
