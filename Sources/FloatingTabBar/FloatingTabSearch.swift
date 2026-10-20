@@ -2,16 +2,39 @@ import SwiftUI
 
 /// What the open page searches, handed to the bar: the bar owns the field and its focus
 /// lifecycle. Pages offer it with `floatingTabBarSearch(_:text:source:isPresented:)`.
+///
+/// The page's binding and callback can change while the search stays the same (one source
+/// bound to another query, a callback that captured other values), and neither can be
+/// compared. So they are not carried in the preference itself: the page keeps the latest pair
+/// in a box that lives as long as the page does. The bar's field watches the box's binding and
+/// is rebuilt with each new one, and the callback is read from the box when it is called. The
+/// preference compares by source, prompt and box, so it changes only when the search itself
+/// does and never loops the bar's state.
 struct FloatingTabSearch: Equatable {
   let source: ObjectIdentifier
   let prompt: String
-  let text: Binding<String>
-  var onFocusChange: (Bool) -> Void
+  let box: FloatingTabSearchBox
+
+  /// The page's latest binding. Read in a view's body, it rebuilds the view when the page
+  /// hands over another one. It is the page's own binding, not a wrapper around it, so the
+  /// field below sees every change of the value as the page's views do.
+  @MainActor var text: Binding<String> { box.text }
+
+  /// The page's latest focus callback
+  @MainActor func onFocusChange(_ focused: Bool) {
+    box.onFocusChange(focused)
+  }
 
   static func == (lhs: Self, rhs: Self) -> Bool {
-    // The field observes its binding directly; only a different source reconfigures the bar.
-    lhs.source == rhs.source && lhs.prompt == rhs.prompt
+    lhs.source == rhs.source && lhs.prompt == rhs.prompt && lhs.box === rhs.box
   }
+}
+
+/// The page's latest search binding and focus callback (see `FloatingTabSearch`)
+@MainActor @Observable
+final class FloatingTabSearchBox {
+  var text: Binding<String> = .constant("")
+  @ObservationIgnored var onFocusChange: (Bool) -> Void = { _ in }
 }
 
 struct FloatingTabSearchKey: PreferenceKey {
@@ -25,16 +48,35 @@ struct FloatingTabSearchKey: PreferenceKey {
 extension View {
   /// Offers this page's search to the bar: a round search button beside it (the last pinned
   /// tab gives up its slot) that turns the bar into the field. `source` tells one page's
-  /// search from another's; only the open tab's page reaches the bar.
+  /// search from another's; only the open tab's page reaches the bar. The bar always uses the
+  /// binding and callback given here last, even when they change for the same source.
   public func floatingTabBarSearch(
     _ prompt: String, text: Binding<String>, source: AnyObject, isPresented: Bool = true,
     onFocusChange: @escaping (Bool) -> Void = { _ in }
   ) -> some View {
-    preference(
+    modifier(SearchOffer(
+      prompt: prompt, text: text, source: ObjectIdentifier(source), isPresented: isPresented,
+      onFocusChange: onFocusChange
+    ))
+  }
+}
+
+private struct SearchOffer: ViewModifier {
+  let prompt: String
+  let text: Binding<String>
+  let source: ObjectIdentifier
+  let isPresented: Bool
+  let onFocusChange: (Bool) -> Void
+  @State private var box = FloatingTabSearchBox()
+
+  func body(content: Content) -> some View {
+    // Keeping the box current is the point of the box. Only the bar's field watches the
+    // binding, so a write here rebuilds that field and nothing that this body depends on.
+    box.text = text
+    box.onFocusChange = onFocusChange
+    return content.preference(
       key: FloatingTabSearchKey.self,
-      value: isPresented ? FloatingTabSearch(
-        source: ObjectIdentifier(source), prompt: prompt, text: text, onFocusChange: onFocusChange
-      ) : nil
+      value: isPresented ? FloatingTabSearch(source: source, prompt: prompt, box: box) : nil
     )
   }
 }
