@@ -17,7 +17,7 @@ import SwiftUI
 /// the bar grows into the menu under a held finger. A group on its own uses its own space.
 ///
 /// Mark each control with `scrubItem(id)` and the group that holds them with `scrubGroup`.
-/// The highlight and the light take their colors from `floatingTabBarStyle`.
+/// The highlight and the light take their colors from `floatDamnDockStyle`.
 extension View {
   /// Shares one finger between the scrub groups under this view, measured in this view's
   /// coordinate space. Put it on a view that does not move or resize while a finger slides
@@ -104,7 +104,7 @@ public final class ScrubSession {
   public init() {}
 
   /// The finger moved; `tuning` says what counts as a slide and how soon it shows
-  func move(from start: CGPoint, to point: CGPoint, tuning: FloatingTabBarStyle.Scrub = .init()) {
+  func move(from start: CGPoint, to point: CGPoint, tuning: FloatDamnDockStyle.Scrub = .init()) {
     let began = self.point == nil
     guard self.point != point else { return }
     lastPoint = point
@@ -211,7 +211,7 @@ extension EnvironmentValues {
 private struct ScrubSurface<Surface: Shape>: ViewModifier {
   let shape: Surface
   @Environment(\.scrubSession) private var session
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   @ViewBuilder func body(content: Content) -> some View {
     if let session {
@@ -234,7 +234,7 @@ private struct ScrubLight: View {
   let session: ScrubSession
   let space: UUID
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   var body: some View {
     GeometryReader { proxy in
@@ -292,7 +292,7 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
   let onHold: (ID) -> Void
   let pick: (ID) -> Void
   @Environment(\.scrubSession) private var shared
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
   @State private var own = ScrubSession()
   @State private var ownSpace = UUID()
   @State private var store = ScrubFrames()

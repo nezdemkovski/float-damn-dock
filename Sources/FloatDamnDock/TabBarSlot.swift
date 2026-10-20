@@ -3,12 +3,12 @@ import SwiftUI
 /// One icon of a floating bar; the highlight under the open one is the group's, so it can
 /// ride under a finger
 struct TabBarSlot: View {
-  let item: FloatingTabItem
+  let item: FloatDamnDockItem
   let identifier: String
   let active: Bool
   var hidden = false
   let action: () -> Void
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   private var dot: Bool { item.badge > 0 }
 

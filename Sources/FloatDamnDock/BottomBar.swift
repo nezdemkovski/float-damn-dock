@@ -11,11 +11,11 @@ struct BottomBar<Tab: Hashable>: View {
   @Binding var selection: Tab
   @Binding var unfolded: Bool
   let model: TabBarModel<Tab>
-  let search: FloatingTabSearch?
+  let search: DockSearch?
   /// Puts the page's search field in the bar's place
   let openSearch: () -> Void
-  @Environment(\.floatingTabBarStyle) private var style
-  @Environment(\.floatingTabBarLabels) private var labels
+  @Environment(\.floatDamnDockStyle) private var style
+  @Environment(\.floatDamnDockLabels) private var labels
   @Environment(\.scrubSession) private var scrub
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var glassNamespace

@@ -1,5 +1,5 @@
 import CoreGraphics
-@testable import FloatingTabBar
+@testable import FloatDamnDock
 import Testing
 
 @MainActor

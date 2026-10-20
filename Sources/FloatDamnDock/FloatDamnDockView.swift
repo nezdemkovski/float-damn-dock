@@ -9,22 +9,22 @@ import SwiftUI
 /// riding under it, and opens what it lifts from.
 ///
 /// ```swift
-/// FloatingTabView(selection: $tab, pinned: [.home, .search, .inbox], menu: Tab.allCases) { tab in
-///   FloatingTabItem(tab.title, systemImage: tab.symbol, badge: tab == .inbox ? unread : 0)
+/// FloatDamnDockView(selection: $tab, pinned: [.home, .search, .inbox], menu: Tab.allCases) { tab in
+///   FloatDamnDockItem(tab.title, systemImage: tab.symbol, badge: tab == .inbox ? unread : 0)
 /// } page: { tab in
 ///   NavigationStack { page(for: tab) }
 /// }
 /// .accessory("New post", systemImage: "plus") { composing = true }
 /// .onReselect { tab in paths[tab] = NavigationPath() }
-/// .floatingTabBarStyle(style)
+/// .floatDamnDockStyle(style)
 /// ```
 ///
-/// Pages offer a search to the bar with `floatingTabBarSearch(_:text:source:)`.
-public struct FloatingTabView<Tab: Hashable, Page: View>: View {
+/// Pages offer a search to the bar with `floatDamnDockSearch(_:text:source:)`.
+public struct FloatDamnDockView<Tab: Hashable, Page: View>: View {
   @Binding private var selection: Tab
   private let page: (Tab) -> Page
   private var model: TabBarModel<Tab>
-  private var placement = FloatingTabBarPlacement.automatic
+  private var placement = FloatDamnDockPlacement.automatic
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   /// - Parameters:
@@ -35,7 +35,7 @@ public struct FloatingTabView<Tab: Hashable, Page: View>: View {
   ///   - page: a tab's page, built the first time it opens
   public init(
     selection: Binding<Tab>, pinned: [Tab], menu: [Tab],
-    item: @escaping (Tab) -> FloatingTabItem,
+    item: @escaping (Tab) -> FloatDamnDockItem,
     @ViewBuilder page: @escaping (Tab) -> Page
   ) {
     _selection = selection
@@ -56,9 +56,9 @@ public struct FloatingTabView<Tab: Hashable, Page: View>: View {
   }
 }
 
-extension FloatingTabView {
+extension FloatDamnDockView {
   /// Where the bar stands; `.automatic` follows the horizontal size class
-  public func placement(_ placement: FloatingTabBarPlacement) -> Self {
+  public func placement(_ placement: FloatDamnDockPlacement) -> Self {
     var view = self
     view.placement = placement
     return view
@@ -77,7 +77,7 @@ extension FloatingTabView {
     _ title: String, systemImage: String, identifier: String = "accessory", action: @escaping () -> Void
   ) -> Self {
     var view = self
-    view.model.accessory = FloatingTabAccessory(title: title, systemImage: systemImage, identifier: identifier, action: action)
+    view.model.accessory = DockAccessory(title: title, systemImage: systemImage, identifier: identifier, action: action)
     return view
   }
 
@@ -90,7 +90,7 @@ extension FloatingTabView {
   ) -> Self {
     var view = self
     view.model.menuHeader = isPresented
-      ? FloatingMenuHeader(title: title, identifier: identifier, action: action, label: AnyView(label()))
+      ? DockMenuHeader(title: title, identifier: identifier, action: action, label: AnyView(label()))
       : nil
     return view
   }
@@ -108,11 +108,11 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
   let side: Bool
   @State private var unfolded = false
   /// The open page's search, handed down to the pages, which show its field
-  @State private var search = FloatingTabSearchController()
+  @State private var search = DockSearchController()
   /// The one finger the bar and the menu share, so a slide carries from one into the other
   @State private var scrub = ScrubSession()
-  @Environment(\.floatingTabBarStyle) private var style
-  @Environment(\.floatingTabBarLabels) private var labels
+  @Environment(\.floatDamnDockStyle) private var style
+  @Environment(\.floatDamnDockLabels) private var labels
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
@@ -123,7 +123,7 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
         }
       if side { SideBarHosting(host: .beside) { sideBar } }
     }
-    .onPreferenceChange(FloatingTabSearchKey.self) { search.offer($0) }
+    .onPreferenceChange(DockSearchKey.self) { search.offer($0) }
     .onChange(of: side) {
       unfolded = false
       search.close()
@@ -151,8 +151,8 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
         }
       }
       .animation(reduceMotion ? nil : style.motion.scrim, value: unfolded)
-      .environment(\.floatingTabBarClearance, side ? 0 : style.metrics.dockHeight)
-      .environment(\.floatingTabSearchController, search)
+      .environment(\.floatDamnDockClearance, side ? 0 : style.metrics.dockHeight)
+      .environment(\.dockSearchController, search)
       // Reserve the dock's space and extend the native progressive scroll-edge blur.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
       // The open page's search field takes the dock's place, at the page's own foot

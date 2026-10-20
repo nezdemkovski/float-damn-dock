@@ -12,7 +12,7 @@ struct GlassCircleButton: View {
   var hideAnimation: Animation?
   let namespace: Namespace.ID
   let action: () -> Void
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   var body: some View {
     Button(action: action) {

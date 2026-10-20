@@ -2,10 +2,10 @@ import SwiftUI
 
 /// Everything about the bar that can be tuned, each with a default: its colors, its metrics,
 /// its motion, and how the finger's slide behaves. Set it once over the bar (or the whole app)
-/// with `floatingTabBarStyle(_:)`, changing only what differs:
+/// with `floatDamnDockStyle(_:)`, changing only what differs:
 ///
 /// ```swift
-/// extension FloatingTabBarStyle {
+/// extension FloatDamnDockStyle {
 ///   static var brand: Self {
 ///     var style = Self()
 ///     style.colors.highlight = .white.opacity(0.14)
@@ -15,7 +15,7 @@ import SwiftUI
 ///   }
 /// }
 /// ```
-public struct FloatingTabBarStyle: Sendable {
+public struct FloatDamnDockStyle: Sendable {
   public var colors = Colors()
   public var metrics = Metrics()
   public var motion = Motion()
@@ -141,8 +141,8 @@ public struct FloatingTabBarStyle: Sendable {
 }
 
 /// The words the bar says itself, for assistive technologies and its search button.
-/// The defaults are English; pass localized ones with `floatingTabBarLabels(_:)`.
-public struct FloatingTabBarLabels: Sendable {
+/// The defaults are English; pass localized ones with `floatDamnDockLabels(_:)`.
+public struct FloatDamnDockLabels: Sendable {
   /// The last slot, which unfolds every tab
   public var more = "More"
   public var moreHint = "Shows every tab"
@@ -157,19 +157,19 @@ public struct FloatingTabBarLabels: Sendable {
 }
 
 extension EnvironmentValues {
-  @Entry public var floatingTabBarStyle = FloatingTabBarStyle()
-  @Entry public var floatingTabBarLabels = FloatingTabBarLabels()
+  @Entry public var floatDamnDockStyle = FloatDamnDockStyle()
+  @Entry public var floatDamnDockLabels = FloatDamnDockLabels()
   /// The space the bottom bar covers at the foot of the pages. Scrolling pages run under it,
   /// behind the scroll-edge blur; a fixed canvas reserves it.
-  @Entry public var floatingTabBarClearance: CGFloat = 0
+  @Entry public var floatDamnDockClearance: CGFloat = 0
 }
 
 extension View {
-  public func floatingTabBarStyle(_ style: FloatingTabBarStyle) -> some View {
-    environment(\.floatingTabBarStyle, style)
+  public func floatDamnDockStyle(_ style: FloatDamnDockStyle) -> some View {
+    environment(\.floatDamnDockStyle, style)
   }
 
-  public func floatingTabBarLabels(_ labels: FloatingTabBarLabels) -> some View {
-    environment(\.floatingTabBarLabels, labels)
+  public func floatDamnDockLabels(_ labels: FloatDamnDockLabels) -> some View {
+    environment(\.floatDamnDockLabels, labels)
   }
 }

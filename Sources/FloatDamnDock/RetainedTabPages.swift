@@ -18,10 +18,10 @@ struct RetainedTabPages<Tab: Hashable, Page: View>: View {
           .accessibilityHidden(!open)
           .zIndex(open ? 1 : 0)
           // A search field from a hidden tab would fight the open one for the keyboard
-          .environment(\.floatingTabIsOpen, open)
+          .environment(\.dockTabIsOpen, open)
           // Retained tabs keep their view trees alive. Only the visible one may configure
           // the shared bar, or a search field from a hidden tab would keep it compressed.
-          .transformPreference(FloatingTabSearchKey.self) { search in
+          .transformPreference(DockSearchKey.self) { search in
             if !open { search = nil }
           }
       }

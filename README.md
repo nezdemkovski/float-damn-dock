@@ -1,6 +1,6 @@
-# FloatingTabBar
+# Float, damn dock!
 
-A floating Liquid Glass tab bar for SwiftUI, in place of the system's.
+A floating Liquid Glass tab bar for SwiftUI, in place of the system's. Made for [Play, damn it!](https://playdamnit.com).
 
 - **Bottom (compact width):** a glass pill of your pinned tabs. Its last slot unfolds a menu with every tab: the pill grows into a card, and folds back the same way.
 - **Side (regular width):** the bar stands up beside the pages and holds every tab.
@@ -10,13 +10,21 @@ A floating Liquid Glass tab bar for SwiftUI, in place of the system's.
 
 Requires iOS 26 and Swift 6.
 
+## Installation
+
+```swift
+.package(url: "https://github.com/nezdemkovski/float-damn-dock", from: "0.1.0")
+```
+
+and add the `FloatDamnDock` product to your target.
+
 ## Usage
 
 ```swift
-import FloatingTabBar
+import FloatDamnDock
 
-FloatingTabView(selection: $tab, pinned: [.home, .search, .inbox], menu: Tab.allCases) { tab in
-  FloatingTabItem(tab.title, systemImage: tab.symbol, badge: tab == .inbox ? unread : 0)
+FloatDamnDockView(selection: $tab, pinned: [.home, .search, .inbox], menu: Tab.allCases) { tab in
+  FloatDamnDockItem(tab.title, systemImage: tab.symbol, badge: tab == .inbox ? unread : 0)
 } page: { tab in
   NavigationStack(path: $paths[tab]) { page(for: tab) }
 }
@@ -29,14 +37,14 @@ A page offers its search to the bar:
 
 ```swift
 List(results) { … }
-  .floatingTabBarSearch("Search", text: $query, source: model)
+  .floatDamnDockSearch("Search", text: $query, source: model)
 ```
 
-`floatingTabBarClearance` in the environment is the space the bottom bar covers. Scrolling pages run under it, behind the scroll-edge blur. A fixed canvas should reserve it.
+`floatDamnDockClearance` in the environment is the space the bottom bar covers. Scrolling pages run under it, behind the scroll-edge blur. A fixed canvas should reserve it.
 
 ## Styling
 
-Everything that can be tuned lives in `FloatingTabBarStyle`, and each value has a default. It has four groups:
+Everything that can be tuned lives in `FloatDamnDockStyle`, and each value has a default. It has four groups:
 
 - `colors`: labels, the highlight, the light under the finger, the glass tint and how strong it is, the scrim, badges.
 - `metrics`: the bar's height, insets, gaps and paddings, icon sizes, the badge dot, the menu's rows and corners.
@@ -46,7 +54,7 @@ Everything that can be tuned lives in `FloatingTabBarStyle`, and each value has 
 Change only what differs, best as a preset of your own:
 
 ```swift
-extension FloatingTabBarStyle {
+extension FloatDamnDockStyle {
   static var brand: Self {
     var style = Self()
     style.colors.highlight = .white.opacity(0.14)
@@ -59,12 +67,12 @@ extension FloatingTabBarStyle {
   }
 }
 
-content.floatingTabBarStyle(.brand)
+content.floatDamnDockStyle(.brand)
 ```
 
-The bar's own words (More, the search button, the menu's scrim) come from `FloatingTabBarLabels`. The defaults are English, so pass localized labels with `floatingTabBarLabels(_:)`.
+The bar's own words (More, the search button, the menu's scrim) come from `FloatDamnDockLabels`. The defaults are English, so pass localized labels with `floatDamnDockLabels(_:)`.
 
-To use your own search field, write a `FloatingTabSearchFieldStyle` and set it with `.floatingTabSearchFieldStyle(MyFieldStyle())`, the way you would set a `ButtonStyle`. Its `makeBody(configuration:)` gets the page's prompt and binding. The field should take focus when it appears, call `focusChanged` as its focus changes, and call `close` to put the bar back.
+To use your own search field, write a `FloatDamnDockSearchFieldStyle` and set it with `.floatDamnDockSearchFieldStyle(MyFieldStyle())`, the way you would set a `ButtonStyle`. Its `makeBody(configuration:)` gets the page's prompt and binding. The field should take focus when it appears, call `focusChanged` as its focus changes, and call `close` to put the bar back.
 
 The field belongs to the page, as with the system's `searchable`. The bar only learns which search the page offers. The page's `text` binding and `onFocusChange` callback never leave the page, so the field always uses the ones the page passed last.
 

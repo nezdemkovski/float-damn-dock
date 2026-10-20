@@ -10,7 +10,7 @@ struct TabMenu<Tab: Hashable>: View {
   let model: TabBarModel<Tab>
   /// Content fades in after the surface starts expanding, and out as it collapses.
   let expanded: Bool
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
   @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -50,7 +50,7 @@ struct TabMenu<Tab: Hashable>: View {
     .accessibilityHidden(!unfolded)
   }
 
-  private func headerRow(_ header: FloatingMenuHeader) -> some View {
+  private func headerRow(_ header: DockMenuHeader) -> some View {
     Button {
       pick(.header)
     } label: {

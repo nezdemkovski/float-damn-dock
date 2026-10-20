@@ -1,18 +1,18 @@
 import SwiftUI
 
 /// What the open page offers to search, as the bar sees it: which search and its prompt.
-/// Pages offer it with `floatingTabBarSearch(_:text:source:isPresented:)`. The page's binding
+/// Pages offer it with `floatDamnDockSearch(_:text:source:isPresented:)`. The page's binding
 /// and callback never leave the page: as with the system's `searchable`, the field is the
 /// page's own, shown in the bar's place while the shell says the search is open.
-struct FloatingTabSearch: Equatable {
+struct DockSearch: Equatable {
   let source: ObjectIdentifier
   let prompt: String
 }
 
-struct FloatingTabSearchKey: PreferenceKey {
-  static var defaultValue: FloatingTabSearch? { nil }
+struct DockSearchKey: PreferenceKey {
+  static var defaultValue: DockSearch? { nil }
 
-  static func reduce(value: inout FloatingTabSearch?, nextValue: () -> FloatingTabSearch?) {
+  static func reduce(value: inout DockSearch?, nextValue: () -> DockSearch?) {
     value = nextValue() ?? value
   }
 }
@@ -21,14 +21,14 @@ struct FloatingTabSearchKey: PreferenceKey {
 /// up. The shell hands it down the environment (as the system hands down `isSearching` and
 /// `dismissSearch`); the bar's search button opens it, the page's field closes it.
 @MainActor @Observable
-final class FloatingTabSearchController {
+final class DockSearchController {
   /// The search the open page offers
-  private(set) var offered: FloatingTabSearch?
+  private(set) var offered: DockSearch?
   /// Its field is up, in the bar's place
   private(set) var isSearching = false
 
   /// Another search, or none, closes the field
-  func offer(_ search: FloatingTabSearch?) {
+  func offer(_ search: DockSearch?) {
     if search?.source != offered?.source { isSearching = false }
     offered = search
   }
@@ -48,10 +48,10 @@ final class FloatingTabSearchController {
 }
 
 extension EnvironmentValues {
-  @Entry var floatingTabSearchController: FloatingTabSearchController?
-  @Entry var floatingTabSearchFieldStyle: (any FloatingTabSearchFieldStyle)?
+  @Entry var dockSearchController: DockSearchController?
+  @Entry var floatDamnDockSearchFieldStyle: (any FloatDamnDockSearchFieldStyle)?
   /// The page's tab is the open one; retained pages of the others stay quiet
-  @Entry var floatingTabIsOpen = true
+  @Entry var dockTabIsOpen = true
 }
 
 extension View {
@@ -59,7 +59,7 @@ extension View {
   /// tab gives up its slot) that puts the page's search field in the bar's place. `source`
   /// tells one page's search from another's; only the open tab's page reaches the bar. The
   /// field uses `text` and `onFocusChange` as given here on each update of the page.
-  public func floatingTabBarSearch(
+  public func floatDamnDockSearch(
     _ prompt: String, text: Binding<String>, source: AnyObject, isPresented: Bool = true,
     onFocusChange: @escaping (Bool) -> Void = { _ in }
   ) -> some View {
@@ -78,10 +78,10 @@ private struct SearchOffer: ViewModifier {
   let source: ObjectIdentifier
   let isPresented: Bool
   let onFocusChange: (Bool) -> Void
-  @Environment(\.floatingTabSearchController) private var controller
-  @Environment(\.floatingTabSearchFieldStyle) private var fieldStyle
-  @Environment(\.floatingTabIsOpen) private var isOpen
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.dockSearchController) private var controller
+  @Environment(\.floatDamnDockSearchFieldStyle) private var fieldStyle
+  @Environment(\.dockTabIsOpen) private var isOpen
+  @Environment(\.floatDamnDockStyle) private var style
 
   private var showsField: Bool {
     isPresented && isOpen && controller?.shows(source) == true
@@ -90,8 +90,8 @@ private struct SearchOffer: ViewModifier {
   func body(content: Content) -> some View {
     content
       .preference(
-        key: FloatingTabSearchKey.self,
-        value: isPresented ? FloatingTabSearch(source: source, prompt: prompt) : nil
+        key: DockSearchKey.self,
+        value: isPresented ? DockSearch(source: source, prompt: prompt) : nil
       )
       // The keyboard's safe area keeps the field above it
       .safeAreaBar(edge: .bottom, spacing: 0) {
@@ -104,7 +104,7 @@ private struct SearchOffer: ViewModifier {
   }
 
   @ViewBuilder private var field: some View {
-    let field = FloatingTabSearchField(
+    let field = FloatDamnDockSearchField(
       prompt: prompt, text: text, close: { controller?.close() },
       focusChanged: { focused in
         onFocusChange(focused)
@@ -120,27 +120,27 @@ private struct SearchOffer: ViewModifier {
 }
 
 /// Draws the search field in the bar's place, as a `ButtonStyle` draws a button. Set it with
-/// `floatingTabSearchFieldStyle(_:)`; without one the field is a plain glass capsule.
-public protocol FloatingTabSearchFieldStyle {
+/// `floatDamnDockSearchFieldStyle(_:)`; without one the field is a plain glass capsule.
+public protocol FloatDamnDockSearchFieldStyle {
   associatedtype Body: View
   /// The field for the page's search. It should take focus when it appears, call
   /// `focusChanged` as its focus changes, and `close` to put the bar back.
-  @ViewBuilder @MainActor func makeBody(configuration: FloatingTabSearchField) -> Body
+  @ViewBuilder @MainActor func makeBody(configuration: FloatDamnDockSearchField) -> Body
 }
 
 extension View {
   /// The search field the bar's search puts in the bar's place, for every bar below
-  public func floatingTabSearchFieldStyle(_ style: some FloatingTabSearchFieldStyle) -> some View {
-    environment(\.floatingTabSearchFieldStyle, style)
+  public func floatDamnDockSearchFieldStyle(_ style: some FloatDamnDockSearchFieldStyle) -> some View {
+    environment(\.floatDamnDockSearchFieldStyle, style)
   }
 }
 
-@MainActor private func styledField(_ style: some FloatingTabSearchFieldStyle, _ field: FloatingTabSearchField) -> AnyView {
+@MainActor private func styledField(_ style: some FloatDamnDockSearchFieldStyle, _ field: FloatDamnDockSearchField) -> AnyView {
   AnyView(style.makeBody(configuration: field))
 }
 
 /// What a search field style gets: the page's search
-public struct FloatingTabSearchField {
+public struct FloatDamnDockSearchField {
   public let prompt: String
   public let text: Binding<String>
   /// Puts the bar back
@@ -151,10 +151,10 @@ public struct FloatingTabSearchField {
 
 /// A glass capsule with the field, and a round glass button that closes it
 private struct DefaultSearchField: View {
-  let field: FloatingTabSearchField
+  let field: FloatDamnDockSearchField
   @FocusState private var focused: Bool
-  @Environment(\.floatingTabBarStyle) private var style
-  @Environment(\.floatingTabBarLabels) private var labels
+  @Environment(\.floatDamnDockStyle) private var style
+  @Environment(\.floatDamnDockLabels) private var labels
 
   var body: some View {
     HStack(spacing: style.metrics.gap) {

@@ -16,7 +16,7 @@ enum SideBarHost {
 struct SideBarHosting<Bar: View>: View {
   let host: SideBarHost
   @ViewBuilder let bar: Bar
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   var body: some View {
     if #available(iOS 27.1, *) {
@@ -32,7 +32,7 @@ private struct ColumnAwareSideBar<Bar: View>: View {
   let host: SideBarHost
   let bar: Bar
   @Environment(\.toolbarVerticalEdge) private var barEdge
-  @Environment(\.floatingTabBarStyle) private var style
+  @Environment(\.floatDamnDockStyle) private var style
 
   var body: some View {
     switch (host, barEdge) {
@@ -81,11 +81,11 @@ private struct ColumnAwareSideBar<Bar: View>: View {
 struct SideBar<Tab: Hashable>: View {
   @Binding var selection: Tab
   let model: TabBarModel<Tab>
-  let search: FloatingTabSearch?
+  let search: DockSearch?
   /// Puts the page's search field at the pages' foot
   let openSearch: () -> Void
-  @Environment(\.floatingTabBarStyle) private var style
-  @Environment(\.floatingTabBarLabels) private var labels
+  @Environment(\.floatDamnDockStyle) private var style
+  @Environment(\.floatDamnDockLabels) private var labels
   @Namespace private var glassNamespace
 
   var body: some View {

@@ -1,4 +1,4 @@
-@testable import FloatingTabBar
+@testable import FloatDamnDock
 import SwiftUI
 import Testing
 import UIKit
@@ -15,13 +15,13 @@ private final class SearchModel {
 /// The field the page shows, as a style gets it
 @MainActor
 private final class FieldRecorder {
-  var field: FloatingTabSearchField?
+  var field: FloatDamnDockSearchField?
 }
 
-private struct RecordingFieldStyle: FloatingTabSearchFieldStyle {
+private struct RecordingFieldStyle: FloatDamnDockSearchFieldStyle {
   let recorder: FieldRecorder
 
-  func makeBody(configuration: FloatingTabSearchField) -> some View {
+  func makeBody(configuration: FloatDamnDockSearchField) -> some View {
     recorder.field = configuration
     return Color.clear.frame(height: 10)
   }
@@ -30,21 +30,21 @@ private struct RecordingFieldStyle: FloatingTabSearchFieldStyle {
 /// A page that offers its search under a shell's search controller, as the shell runs it
 private struct SearchHarness: View {
   @Bindable var model: SearchModel
-  let controller: FloatingTabSearchController
+  let controller: DockSearchController
   let recorder: FieldRecorder
   var isOpenTab = true
 
   var body: some View {
     let section = model.searchesLists ? "lists" : "games"
     Color.clear
-      .floatingTabBarSearch(
+      .floatDamnDockSearch(
         "Search", text: model.searchesLists ? $model.lists : $model.games, source: model,
         onFocusChange: { _ in model.focusChanges.append(section) }
       )
-      .environment(\.floatingTabIsOpen, isOpenTab)
-      .onPreferenceChange(FloatingTabSearchKey.self) { controller.offer($0) }
-      .environment(\.floatingTabSearchController, controller)
-      .floatingTabSearchFieldStyle(RecordingFieldStyle(recorder: recorder))
+      .environment(\.dockTabIsOpen, isOpenTab)
+      .onPreferenceChange(DockSearchKey.self) { controller.offer($0) }
+      .environment(\.dockSearchController, controller)
+      .floatDamnDockSearchFieldStyle(RecordingFieldStyle(recorder: recorder))
   }
 }
 
@@ -65,7 +65,7 @@ struct SearchTests {
 
   @Test func fieldUsesTheBindingAndCallbackThePageGaveLast() async throws {
     let model = SearchModel()
-    let controller = FloatingTabSearchController()
+    let controller = DockSearchController()
     let recorder = FieldRecorder()
     let window = host(SearchHarness(model: model, controller: controller, recorder: recorder))
     defer { window.isHidden = true }
@@ -96,28 +96,28 @@ struct SearchTests {
 
   @Test func hiddenTabShowsNoField() async {
     let model = SearchModel()
-    let controller = FloatingTabSearchController()
+    let controller = DockSearchController()
     let recorder = FieldRecorder()
     let window = host(SearchHarness(model: model, controller: controller, recorder: recorder, isOpenTab: false))
     defer { window.isHidden = true }
     await settle()
 
-    controller.offer(FloatingTabSearch(source: ObjectIdentifier(model), prompt: "Search"))
+    controller.offer(DockSearch(source: ObjectIdentifier(model), prompt: "Search"))
     controller.open()
     await settle()
     #expect(recorder.field == nil)
   }
 
   @Test func anotherSearchClosesTheField() {
-    let controller = FloatingTabSearchController()
+    let controller = DockSearchController()
     // Both sources stay alive, so their identifiers differ
     let games = SearchModel(), lists = SearchModel()
-    let first = FloatingTabSearch(source: ObjectIdentifier(games), prompt: "Games")
+    let first = DockSearch(source: ObjectIdentifier(games), prompt: "Games")
     controller.offer(first)
     controller.open()
     #expect(controller.shows(first.source))
 
-    controller.offer(FloatingTabSearch(source: ObjectIdentifier(lists), prompt: "Lists"))
+    controller.offer(DockSearch(source: ObjectIdentifier(lists), prompt: "Lists"))
     #expect(!controller.isSearching)
     controller.offer(nil)
     controller.open()

@@ -1,4 +1,4 @@
-import FloatingTabBar
+import FloatDamnDock
 import SwiftUI
 import Testing
 import UIKit
@@ -6,7 +6,7 @@ import UIKit
 @MainActor @Observable
 private final class Harness {
   var tab = "home"
-  var placement = FloatingTabBarPlacement.bottom
+  var placement = FloatDamnDockPlacement.bottom
   /// How many times each page's own state was created
   var created: [String: Int] = [:]
 }
@@ -31,8 +31,8 @@ private struct HarnessView: View {
   @Bindable var harness: Harness
 
   var body: some View {
-    FloatingTabView(selection: $harness.tab, pinned: ["home", "inbox"], menu: ["home", "inbox", "more"]) { tab in
-      FloatingTabItem(tab, systemImage: "circle")
+    FloatDamnDockView(selection: $harness.tab, pinned: ["home", "inbox"], menu: ["home", "inbox", "more"]) { tab in
+      FloatDamnDockItem(tab, systemImage: "circle")
     } page: { tab in
       CountingPage(name: tab, harness: harness)
     }

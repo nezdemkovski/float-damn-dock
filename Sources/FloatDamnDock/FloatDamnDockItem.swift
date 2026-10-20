@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// How a tab shows in the bar and the menu
-public struct FloatingTabItem {
+public struct FloatDamnDockItem {
   public var title: String
   /// An SF Symbol; the open tab shows its fill variant
   public var systemImage: String
@@ -19,7 +19,7 @@ public struct FloatingTabItem {
 }
 
 /// Where the bar stands
-public enum FloatingTabBarPlacement: Sendable {
+public enum FloatDamnDockPlacement: Sendable {
   /// Along the bottom at compact width, at the side at regular width
   case automatic
   /// A pill along the bottom whose last slot unfolds the menu
@@ -29,7 +29,7 @@ public enum FloatingTabBarPlacement: Sendable {
 }
 
 /// A round glass button beside the bar, for the app's main action
-struct FloatingTabAccessory {
+struct DockAccessory {
   let title: String
   let systemImage: String
   let identifier: String
@@ -37,21 +37,21 @@ struct FloatingTabAccessory {
 }
 
 /// The row on top of the menu (who is signed in, say), a way somewhere that is not a tab
-struct FloatingMenuHeader {
+struct DockMenuHeader {
   let title: String
   let identifier: String
   let action: () -> Void
   let label: AnyView
 }
 
-/// Everything the bars know beyond the selection, handed down from `FloatingTabView`
+/// Everything the bars know beyond the selection, handed down from `FloatDamnDockView`
 struct TabBarModel<Tab: Hashable> {
   var pinned: [Tab]
   var menu: [Tab]
-  var item: (Tab) -> FloatingTabItem
+  var item: (Tab) -> FloatDamnDockItem
   var onReselect: ((Tab) -> Void)?
-  var accessory: FloatingTabAccessory?
-  var menuHeader: FloatingMenuHeader?
+  var accessory: DockAccessory?
+  var menuHeader: DockMenuHeader?
 
   /// Opens the tab; the open tab's own slot calls `onReselect` (back to its root, say)
   func open(_ tab: Tab, selection: Binding<Tab>) {
