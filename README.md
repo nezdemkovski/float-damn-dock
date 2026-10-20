@@ -8,6 +8,7 @@
   <img src="https://img.shields.io/badge/iOS-26%2B-black?logo=apple" alt="iOS 26+">
   <img src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
   <img src="https://img.shields.io/badge/SwiftPM-compatible-brightgreen" alt="Swift Package Manager">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">
 </p>
 
 <table align="center">
@@ -224,3 +225,7 @@ Every control keeps a real button for VoiceOver and keyboards, and Reduce Motion
 | Menu header | `sections.<identifier>` |
 
 `<tab>` is `String(describing: tab)`, so for an enum it is the case name.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
