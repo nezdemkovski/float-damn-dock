@@ -94,14 +94,6 @@ extension FloatingTabView {
       : nil
     return view
   }
-
-  /// The field the bar turns into while the open page is searched, in place of the plain
-  /// glass one
-  public func searchField<Field: View>(@ViewBuilder _ field: @escaping (FloatingTabSearchField) -> Field) -> Self {
-    var view = self
-    view.model.searchField = { AnyView(field($0)) }
-    return view
-  }
 }
 
 /// The pages and the bar around them, along the bottom or at the side. The pages stand in
@@ -115,9 +107,8 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
   let page: (Tab) -> Page
   let side: Bool
   @State private var unfolded = false
-  @State private var search: FloatingTabSearch?
-  /// The side bar's search field is up (the bottom bar keeps its own)
-  @State private var searching = false
+  /// The open page's search, handed down to the pages, which show its field
+  @State private var search = FloatingTabSearchController()
   /// The one finger the bar and the menu share, so a slide carries from one into the other
   @State private var scrub = ScrubSession()
   @Environment(\.floatingTabBarStyle) private var style
@@ -132,11 +123,10 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
         }
       if side { SideBarHosting(host: .beside) { sideBar } }
     }
-    .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-    .onChange(of: search?.source) { searching = false }
+    .onPreferenceChange(FloatingTabSearchKey.self) { search.offer($0) }
     .onChange(of: side) {
       unfolded = false
-      searching = false
+      search.close()
     }
     .scrubSession(scrub)
     .sensoryFeedback(.selection, trigger: selection)
@@ -162,24 +152,21 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
       }
       .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: unfolded)
       .environment(\.floatingTabBarClearance, side ? 0 : style.dockHeight)
+      .environment(\.floatingTabSearchController, search)
       // Reserve the dock's space and extend the native progressive scroll-edge blur.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
-      // Respect the keyboard safe area so the dock's input remains above the keyboard.
+      // The open page's search field takes the dock's place, at the page's own foot
       .safeAreaBar(edge: .bottom, spacing: 0) {
-        if side {
-          // The side bar's column is too narrow for the field: it floats at the pages' foot
-          if let search, searching {
-            BarSearchField(search: search, model: model) { searching = false }
-              .padding(.horizontal, style.horizontalPadding)
-              .padding(.vertical, style.verticalPadding)
-          }
-        } else {
-          BottomBar(selection: $selection, unfolded: $unfolded, model: model, search: search)
+        if !side && !search.isSearching {
+          BottomBar(
+            selection: $selection, unfolded: $unfolded, model: model, search: search.offered,
+            openSearch: search.open
+          )
         }
       }
   }
 
   private var sideBar: SideBar<Tab> {
-    SideBar(selection: $selection, model: model, search: search, searching: $searching)
+    SideBar(selection: $selection, model: model, search: search.offered, openSearch: search.open)
   }
 }

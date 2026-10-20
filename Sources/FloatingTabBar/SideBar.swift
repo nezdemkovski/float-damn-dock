@@ -82,7 +82,8 @@ struct SideBar<Tab: Hashable>: View {
   @Binding var selection: Tab
   let model: TabBarModel<Tab>
   let search: FloatingTabSearch?
-  @Binding var searching: Bool
+  /// Puts the page's search field at the pages' foot
+  let openSearch: () -> Void
   @Environment(\.floatingTabBarStyle) private var style
   @Environment(\.floatingTabBarLabels) private var labels
   @Namespace private var glassNamespace
@@ -93,7 +94,7 @@ struct SideBar<Tab: Hashable>: View {
       if search != nil {
         GlassCircleButton(
           title: labels.search, systemImage: "magnifyingglass", identifier: "search", namespace: glassNamespace
-        ) { searching = true }
+        ) { openSearch() }
           .transition(.opacity)
       }
       if let accessory = model.accessory {

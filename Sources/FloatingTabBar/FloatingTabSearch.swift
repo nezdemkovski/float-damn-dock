@@ -1,40 +1,12 @@
 import SwiftUI
 
-/// What the open page searches, handed to the bar: the bar owns the field and its focus
-/// lifecycle. Pages offer it with `floatingTabBarSearch(_:text:source:isPresented:)`.
-///
-/// The page's binding and callback can change while the search stays the same (one source
-/// bound to another query, a callback that captured other values), and neither can be
-/// compared. So they are not carried in the preference itself: the page keeps the latest pair
-/// in a box that lives as long as the page does. The bar's field watches the box's binding and
-/// is rebuilt with each new one, and the callback is read from the box when it is called. The
-/// preference compares by source, prompt and box, so it changes only when the search itself
-/// does and never loops the bar's state.
+/// What the open page offers to search, as the bar sees it: which search and its prompt.
+/// Pages offer it with `floatingTabBarSearch(_:text:source:isPresented:)`. The page's binding
+/// and callback never leave the page: as with the system's `searchable`, the field is the
+/// page's own, shown in the bar's place while the shell says the search is open.
 struct FloatingTabSearch: Equatable {
   let source: ObjectIdentifier
   let prompt: String
-  let box: FloatingTabSearchBox
-
-  /// The page's latest binding. Read in a view's body, it rebuilds the view when the page
-  /// hands over another one. It is the page's own binding, not a wrapper around it, so the
-  /// field below sees every change of the value as the page's views do.
-  @MainActor var text: Binding<String> { box.text }
-
-  /// The page's latest focus callback
-  @MainActor func onFocusChange(_ focused: Bool) {
-    box.onFocusChange(focused)
-  }
-
-  static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.source == rhs.source && lhs.prompt == rhs.prompt && lhs.box === rhs.box
-  }
-}
-
-/// The page's latest search binding and focus callback (see `FloatingTabSearch`)
-@MainActor @Observable
-final class FloatingTabSearchBox {
-  var text: Binding<String> = .constant("")
-  @ObservationIgnored var onFocusChange: (Bool) -> Void = { _ in }
 }
 
 struct FloatingTabSearchKey: PreferenceKey {
@@ -45,11 +17,48 @@ struct FloatingTabSearchKey: PreferenceKey {
   }
 }
 
+/// The open page's search as the shell runs it: the search on offer and whether its field is
+/// up. The shell hands it down the environment (as the system hands down `isSearching` and
+/// `dismissSearch`); the bar's search button opens it, the page's field closes it.
+@MainActor @Observable
+final class FloatingTabSearchController {
+  /// The search the open page offers
+  private(set) var offered: FloatingTabSearch?
+  /// Its field is up, in the bar's place
+  private(set) var isSearching = false
+
+  /// Another search, or none, closes the field
+  func offer(_ search: FloatingTabSearch?) {
+    if search?.source != offered?.source { isSearching = false }
+    offered = search
+  }
+
+  func open() {
+    if offered != nil { isSearching = true }
+  }
+
+  func close() {
+    isSearching = false
+  }
+
+  /// The field of this search is up
+  func shows(_ source: ObjectIdentifier) -> Bool {
+    isSearching && offered?.source == source
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var floatingTabSearchController: FloatingTabSearchController?
+  @Entry var floatingTabSearchFieldStyle: (any FloatingTabSearchFieldStyle)?
+  /// The page's tab is the open one; retained pages of the others stay quiet
+  @Entry var floatingTabIsOpen = true
+}
+
 extension View {
   /// Offers this page's search to the bar: a round search button beside it (the last pinned
-  /// tab gives up its slot) that turns the bar into the field. `source` tells one page's
-  /// search from another's; only the open tab's page reaches the bar. The bar always uses the
-  /// binding and callback given here last, even when they change for the same source.
+  /// tab gives up its slot) that puts the page's search field in the bar's place. `source`
+  /// tells one page's search from another's; only the open tab's page reaches the bar. The
+  /// field uses `text` and `onFocusChange` as given here on each update of the page.
   public func floatingTabBarSearch(
     _ prompt: String, text: Binding<String>, source: AnyObject, isPresented: Bool = true,
     onFocusChange: @escaping (Bool) -> Void = { _ in }
@@ -61,28 +70,76 @@ extension View {
   }
 }
 
+/// Offers the search up to the bar, and shows the field at the page's foot while the shell
+/// has it open
 private struct SearchOffer: ViewModifier {
   let prompt: String
   let text: Binding<String>
   let source: ObjectIdentifier
   let isPresented: Bool
   let onFocusChange: (Bool) -> Void
-  @State private var box = FloatingTabSearchBox()
+  @Environment(\.floatingTabSearchController) private var controller
+  @Environment(\.floatingTabSearchFieldStyle) private var fieldStyle
+  @Environment(\.floatingTabIsOpen) private var isOpen
+  @Environment(\.floatingTabBarStyle) private var style
+
+  private var showsField: Bool {
+    isPresented && isOpen && controller?.shows(source) == true
+  }
 
   func body(content: Content) -> some View {
-    // Keeping the box current is the point of the box. Only the bar's field watches the
-    // binding, so a write here rebuilds that field and nothing that this body depends on.
-    box.text = text
-    box.onFocusChange = onFocusChange
-    return content.preference(
-      key: FloatingTabSearchKey.self,
-      value: isPresented ? FloatingTabSearch(source: source, prompt: prompt, box: box) : nil
+    content
+      .preference(
+        key: FloatingTabSearchKey.self,
+        value: isPresented ? FloatingTabSearch(source: source, prompt: prompt) : nil
+      )
+      // The keyboard's safe area keeps the field above it
+      .safeAreaBar(edge: .bottom, spacing: 0) {
+        if showsField {
+          field
+            .padding(.horizontal, style.horizontalPadding)
+            .padding(.vertical, style.verticalPadding)
+        }
+      }
+  }
+
+  @ViewBuilder private var field: some View {
+    let field = FloatingTabSearchField(
+      prompt: prompt, text: text, close: { controller?.close() },
+      focusChanged: { focused in
+        onFocusChange(focused)
+        if !focused { controller?.close() }
+      }
     )
+    if let fieldStyle {
+      styledField(fieldStyle, field)
+    } else {
+      DefaultSearchField(field: field)
+    }
   }
 }
 
-/// What a custom search field gets from the bar (see `FloatingTabView.searchField(_:)`).
-/// The field should take focus when it appears.
+/// Draws the search field in the bar's place, as a `ButtonStyle` draws a button. Set it with
+/// `floatingTabSearchFieldStyle(_:)`; without one the field is a plain glass capsule.
+public protocol FloatingTabSearchFieldStyle {
+  associatedtype Body: View
+  /// The field for the page's search. It should take focus when it appears, call
+  /// `focusChanged` as its focus changes, and `close` to put the bar back.
+  @ViewBuilder @MainActor func makeBody(configuration: FloatingTabSearchField) -> Body
+}
+
+extension View {
+  /// The search field the bar's search puts in the bar's place, for every bar below
+  public func floatingTabSearchFieldStyle(_ style: some FloatingTabSearchFieldStyle) -> some View {
+    environment(\.floatingTabSearchFieldStyle, style)
+  }
+}
+
+@MainActor private func styledField(_ style: some FloatingTabSearchFieldStyle, _ field: FloatingTabSearchField) -> AnyView {
+  AnyView(style.makeBody(configuration: field))
+}
+
+/// What a search field style gets: the page's search
 public struct FloatingTabSearchField {
   public let prompt: String
   public let text: Binding<String>
@@ -90,28 +147,6 @@ public struct FloatingTabSearchField {
   public let close: () -> Void
   /// Call it as the field gains and loses focus; losing it puts the bar back
   public let focusChanged: (Bool) -> Void
-}
-
-/// The search field in the bar's place: the app's own, or a plain glass one
-struct BarSearchField<Tab: Hashable>: View {
-  let search: FloatingTabSearch
-  let model: TabBarModel<Tab>
-  let close: () -> Void
-
-  var body: some View {
-    let field = FloatingTabSearchField(
-      prompt: search.prompt, text: search.text, close: close,
-      focusChanged: { focused in
-        search.onFocusChange(focused)
-        if !focused { close() }
-      }
-    )
-    if let custom = model.searchField {
-      custom(field)
-    } else {
-      DefaultSearchField(field: field)
-    }
-  }
 }
 
 /// A glass capsule with the field, and a round glass button that closes it

@@ -52,7 +52,6 @@ struct TabBarModel<Tab: Hashable> {
   var onReselect: ((Tab) -> Void)?
   var accessory: FloatingTabAccessory?
   var menuHeader: FloatingMenuHeader?
-  var searchField: ((FloatingTabSearchField) -> AnyView)?
 
   /// Opens the tab; the open tab's own slot calls `onReselect` (back to its root, say)
   func open(_ tab: Tab, selection: Binding<Tab>) {

@@ -51,7 +51,9 @@ content.floatingTabBarStyle(style)
 
 The bar's own words (More, the search button, the menu's scrim) come from `FloatingTabBarLabels`. The defaults are English, so pass localized labels with `floatingTabBarLabels(_:)`.
 
-To use your own search field, pass `.searchField { field in MyField(field) }`. The field should take focus when it appears, call `field.focusChanged` as its focus changes, and call `field.close` to put the bar back.
+To use your own search field, write a `FloatingTabSearchFieldStyle` and set it with `.floatingTabSearchFieldStyle(MyFieldStyle())`, the way you would set a `ButtonStyle`. Its `makeBody(configuration:)` gets the page's prompt and binding. The field should take focus when it appears, call `focusChanged` as its focus changes, and call `close` to put the bar back.
+
+The field belongs to the page, as with the system's `searchable`. The bar only learns which search the page offers. The page's `text` binding and `onFocusChange` callback never leave the page, so the field always uses the ones the page passed last.
 
 ## Accessibility identifiers
 

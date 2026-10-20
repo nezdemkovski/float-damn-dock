@@ -23,12 +23,13 @@ struct BottomBar<Tab: Hashable>: View {
   @Binding var unfolded: Bool
   let model: TabBarModel<Tab>
   let search: FloatingTabSearch?
+  /// Puts the page's search field in the bar's place
+  let openSearch: () -> Void
   @Environment(\.floatingTabBarStyle) private var style
   @Environment(\.floatingTabBarLabels) private var labels
   @Environment(\.scrubSession) private var scrub
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var glassNamespace
-  @State private var searching = false
   @State private var menuPhase: MenuPhase = .closed
   /// Counts the unfold and fold requests, so a press that finishes after the next request
   /// does not open the menu
@@ -60,19 +61,9 @@ struct BottomBar<Tab: Hashable>: View {
   private var current: Slot { overflowSelected ? .more : .tab(selection) }
 
   var body: some View {
-    ZStack(alignment: .bottom) {
-      if let search, searching {
-        BarSearchField(search: search, model: model) { searching = false }
-          .frame(maxWidth: .infinity)
-      } else {
-        GlassEffectContainer(spacing: style.gap) { controls }
-      }
-    }
-    // Search is replaced without retaining an outgoing focused field or glass surface.
-    // The safe-area bar follows the system keyboard animation on its own.
-    .padding(.horizontal, style.horizontalPadding)
-    .padding(.vertical, style.verticalPadding)
-    .onChange(of: search?.source) { searching = false }
+    GlassEffectContainer(spacing: style.gap) { controls }
+      .padding(.horizontal, style.horizontalPadding)
+      .padding(.vertical, style.verticalPadding)
   }
 
   private var controls: some View {
@@ -92,7 +83,7 @@ struct BottomBar<Tab: Hashable>: View {
           namespace: glassNamespace
         ) {
           unfolded = false
-          searching = true
+          openSearch()
         }
         .dockRole(.search)
         .transition(.opacity)

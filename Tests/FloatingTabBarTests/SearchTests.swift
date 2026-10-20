@@ -12,42 +12,39 @@ private final class SearchModel {
   var focusChanges: [String] = []
 }
 
-/// What the bar hands its search field
+/// The field the page shows, as a style gets it
 @MainActor
 private final class FieldRecorder {
   var field: FloatingTabSearchField?
 }
 
-/// A page that offers its search, and the bar's field for it, wired as the shell wires them
+private struct RecordingFieldStyle: FloatingTabSearchFieldStyle {
+  let recorder: FieldRecorder
+
+  func makeBody(configuration: FloatingTabSearchField) -> some View {
+    recorder.field = configuration
+    return Color.clear.frame(height: 10)
+  }
+}
+
+/// A page that offers its search under a shell's search controller, as the shell runs it
 private struct SearchHarness: View {
   @Bindable var model: SearchModel
+  let controller: FloatingTabSearchController
   let recorder: FieldRecorder
-  @State private var search: FloatingTabSearch?
+  var isOpenTab = true
 
   var body: some View {
     let section = model.searchesLists ? "lists" : "games"
-    VStack {
-      Color.clear
-        .frame(height: 10)
-        .floatingTabBarSearch(
-          "Search", text: model.searchesLists ? $model.lists : $model.games, source: model,
-          onFocusChange: { _ in model.focusChanges.append(section) }
-        )
-      if let search {
-        BarSearchField(search: search, model: barModel) {}
-      }
-    }
-    .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-  }
-
-  private var barModel: TabBarModel<String> {
-    TabBarModel(
-      pinned: [], menu: [], item: { FloatingTabItem($0, systemImage: "circle") },
-      searchField: { field in
-        recorder.field = field
-        return AnyView(Color.clear)
-      }
-    )
+    Color.clear
+      .floatingTabBarSearch(
+        "Search", text: model.searchesLists ? $model.lists : $model.games, source: model,
+        onFocusChange: { _ in model.focusChanges.append(section) }
+      )
+      .environment(\.floatingTabIsOpen, isOpenTab)
+      .onPreferenceChange(FloatingTabSearchKey.self) { controller.offer($0) }
+      .environment(\.floatingTabSearchController, controller)
+      .floatingTabSearchFieldStyle(RecordingFieldStyle(recorder: recorder))
   }
 }
 
@@ -59,29 +56,71 @@ struct SearchTests {
     }
   }
 
-  @Test func barFollowsTheBindingAndCallbackTheSourceHandsItLast() async throws {
-    let model = SearchModel()
-    let recorder = FieldRecorder()
+  private func host(_ view: some View) -> UIWindow {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
-    window.rootViewController = UIHostingController(rootView: SearchHarness(model: model, recorder: recorder))
+    window.rootViewController = UIHostingController(rootView: view)
     window.makeKeyAndVisible()
+    return window
+  }
+
+  @Test func fieldUsesTheBindingAndCallbackThePageGaveLast() async throws {
+    let model = SearchModel()
+    let controller = FloatingTabSearchController()
+    let recorder = FieldRecorder()
+    let window = host(SearchHarness(model: model, controller: controller, recorder: recorder))
     defer { window.isHidden = true }
     await settle()
+    #expect(recorder.field == nil)
 
+    controller.open()
+    await settle()
     let first = try #require(recorder.field)
     first.text.wrappedValue = "zelda"
     #expect(model.games == "zelda")
 
-    // Same source, another query and another callback: the bar's field follows them
+    // Same source, another query and another callback: the field follows them
     model.searchesLists = true
     await settle()
     let field = try #require(recorder.field)
     field.text.wrappedValue = "favorites"
     #expect(model.lists == "favorites")
     #expect(model.games == "zelda")
-    #expect(field.text.wrappedValue == "favorites")
 
     field.focusChanged(true)
     #expect(model.focusChanges.last == "lists")
+
+    // Losing focus puts the bar back
+    field.focusChanged(false)
+    #expect(!controller.isSearching)
+  }
+
+  @Test func hiddenTabShowsNoField() async {
+    let model = SearchModel()
+    let controller = FloatingTabSearchController()
+    let recorder = FieldRecorder()
+    let window = host(SearchHarness(model: model, controller: controller, recorder: recorder, isOpenTab: false))
+    defer { window.isHidden = true }
+    await settle()
+
+    controller.offer(FloatingTabSearch(source: ObjectIdentifier(model), prompt: "Search"))
+    controller.open()
+    await settle()
+    #expect(recorder.field == nil)
+  }
+
+  @Test func anotherSearchClosesTheField() {
+    let controller = FloatingTabSearchController()
+    // Both sources stay alive, so their identifiers differ
+    let games = SearchModel(), lists = SearchModel()
+    let first = FloatingTabSearch(source: ObjectIdentifier(games), prompt: "Games")
+    controller.offer(first)
+    controller.open()
+    #expect(controller.shows(first.source))
+
+    controller.offer(FloatingTabSearch(source: ObjectIdentifier(lists), prompt: "Lists"))
+    #expect(!controller.isSearching)
+    controller.offer(nil)
+    controller.open()
+    #expect(!controller.isSearching)
   }
 }
