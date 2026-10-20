@@ -133,7 +133,7 @@ private struct BottomTabShell<Tab: Hashable, Page: View>: View {
         BottomBar(selection: $selection, unfolded: $unfolded, model: model, search: search)
       }
       .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-      .environment(\.scrubSession, scrub)
+      .scrubSession(scrub)
       .sensoryFeedback(.selection, trigger: selection)
       .sensoryFeedback(.impact(weight: .light), trigger: unfolded)
   }
@@ -175,7 +175,7 @@ private struct SideTabShell<Tab: Hashable, Page: View>: View {
       RetainedTabPages(selection: selection, page: page)
     }
     .onPreferenceChange(FloatingTabSearchKey.self) { search = $0 }
-    .environment(\.scrubSession, scrub)
+    .scrubSession(scrub)
     .sensoryFeedback(.selection, trigger: selection)
   }
 }

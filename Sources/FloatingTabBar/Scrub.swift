@@ -9,37 +9,51 @@ import SwiftUI
 ///
 /// Groups on one screen share the finger through a `ScrubSession` in the environment: a slide
 /// that starts in one group (the bar) carries on into another that comes up under it (the
-/// sections popover), and the lift picks in whichever group it lands.
+/// menu), and the lift picks in whichever group it lands.
+///
+/// Everything is measured in one coordinate space: the finger, the items' frames and the
+/// light. With a shared session it is the space of the view that holds the session
+/// (`scrubSession(_:)`), which should stay put while the surfaces under the finger change:
+/// the bar grows into the menu under a held finger. A group on its own uses its own space.
 ///
 /// Mark each control with `scrubItem(id)` and the group that holds them with `scrubGroup`.
 /// The highlight and the light take their colors from `floatingTabBarStyle`.
 extension View {
+  /// Shares one finger between the scrub groups under this view, measured in this view's
+  /// coordinate space. Put it on a view that does not move or resize while a finger slides
+  /// (a screen), above every surface it serves.
+  public func scrubSession(_ session: ScrubSession) -> some View {
+    environment(\.scrubSession, session)
+      .coordinateSpace(.named(session.space))
+  }
+
   /// One control of a scrub group, known by its id
   public func scrubItem(_ id: some Hashable) -> some View {
     modifier(ScrubItem(id: AnyHashable(id)))
   }
 
-  /// The surface that owns the finger for the groups inside it, when they share a session:
+  /// The surface that owns the finger for the groups inside it, when they share a session
+  /// (see `scrubSession(_:)`):
   /// a view that stays while the groups come and go (a bar that turns into a menu), so a slide
   /// carries across. It also owns the finger's light, clipped only to the surface shape.
-  /// Without a shared session a group takes its own touches and draws its own light.
+  /// Without a surface a group takes its own touches and draws its own light.
   public func scrubSurface(in shape: some Shape) -> some View {
     modifier(ScrubSurface(shape: shape))
   }
 
   /// The group: draws the highlight under the chosen (or the finger's) item
   /// and picks the item the finger lifts from. `tapOnly` items respond to a short tap but
-  /// never join the drag highlight. `hovered` reports the item under the finger while down.
+  /// never join the drag highlight. `onHold` is called when the finger rests on one of the
+  /// `holds` items for `ScrubSession.holdDuration`; the lift that ends such a hold picks
+  /// nothing unless the finger slid on first. Resting on any other item is just a slow slide.
   public func scrubGroup<ID: Hashable>(
     _ type: ID.Type = ID.self, selected: ID?, highlight: ScrubHighlight, follows: ScrubFollow,
-    isEnabled: Bool = true, ignoresHoverNear: CGPoint? = nil, hoverRadius: CGFloat = 0,
-    tapOnly: Set<ID> = [], hovered: Binding<ID?>? = nil,
-    pick: @escaping (ID) -> Void
+    isEnabled: Bool = true, tapOnly: Set<ID> = [], holds: Set<ID> = [],
+    onHold: @escaping (ID) -> Void = { _ in }, pick: @escaping (ID) -> Void
   ) -> some View {
     modifier(ScrubGroup<ID>(
       selected: selected, highlight: highlight, follows: follows, isEnabled: isEnabled,
-      ignoresHoverNear: ignoresHoverNear, hoverRadius: hoverRadius, tapOnly: tapOnly,
-      hoveredOut: hovered, pick: pick
+      tapOnly: tapOnly, holds: holds, onHold: onHold, pick: pick
     ))
   }
 }
@@ -65,21 +79,34 @@ public enum ScrubFollow: Sendable {
   case item
 }
 
-/// The one finger of a scrub, shared by the groups on a screen: where it is in the window
-/// while it is down, where it lifted, and a count of its lifts
+/// The one finger of a scrub, shared by the groups on a screen: where it is while it is down
+/// (in the owning view's space), where it lifted, whether it rests after a hold, and a count
+/// of its lifts
 @MainActor @Observable
 public final class ScrubSession {
+  /// Held this long on one item, the finger holds it (see `scrubGroup(onHold:)`)
+  public static let holdDuration = Duration.milliseconds(350)
+  /// A finger held this long without sliding shows the light, so a quick tap does not flash it
   private static let feedbackDelay = Duration.milliseconds(180)
+  /// A slide shorter than this is still a tap
+  private static let tapSlop: CGFloat = 8
+  /// After a hold, the finger has to slide this far before it hovers and picks again
+  private static let restSlop: CGFloat = 12
 
   public private(set) var point: CGPoint?
   public private(set) var lastPoint: CGPoint?
   public private(set) var showsFeedback = false
+  /// A hold has fired and the finger has not slid away from where it held
+  public private(set) var isResting = false
   @ObservationIgnored public private(set) var liftPoint: CGPoint?
   @ObservationIgnored public private(set) var lastLiftWasTap = true
   public private(set) var lifts = 0
   @ObservationIgnored private var moved = false
+  @ObservationIgnored private var restOrigin: CGPoint?
   @ObservationIgnored private var claimedLift = 0
   @ObservationIgnored private var feedbackTask: Task<Void, Never>?
+  /// The coordinate space the finger is measured in (see `scrubSession(_:)`)
+  nonisolated let space = UUID()
 
   public init() {}
 
@@ -88,7 +115,11 @@ public final class ScrubSession {
     guard self.point != point else { return }
     lastPoint = point
     self.point = point
-    if hypot(point.x - start.x, point.y - start.y) >= 8 {
+    if let origin = restOrigin, distance(origin, point) >= Self.restSlop {
+      restOrigin = nil
+      isResting = false
+    }
+    if distance(start, point) >= Self.tapSlop {
       moved = true
       if !showsFeedback {
         feedbackTask?.cancel()
@@ -103,6 +134,14 @@ public final class ScrubSession {
         self.showsFeedback = true
       }
     }
+  }
+
+  /// The finger holds where it is: until it slides away, it hovers nothing, and lifting
+  /// there picks nothing
+  func hold() {
+    guard let point else { return }
+    restOrigin = point
+    isResting = true
   }
 
   /// A lift belongs to one group, even when choosing it reveals another group underneath.
@@ -121,15 +160,25 @@ public final class ScrubSession {
     if showsFeedback { showsFeedback = false }
     moved = false
     lifts += 1
+    // A lift that ends a hold where it held is nobody's pick
+    if restOrigin != nil { claimedLift = lifts }
+    restOrigin = nil
+    if isResting { isResting = false }
+  }
+
+  private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+    hypot(a.x - b.x, a.y - b.y)
   }
 }
 
 extension EnvironmentValues {
   /// The finger shared by the scrub groups under this view; a group without one keeps its own
   @Entry public var scrubSession: ScrubSession?
+  /// The coordinate space a group measures its items in, for the items under it
+  @Entry var scrubSpace: UUID?
 }
 
-/// Where each item of a group sits, by id, in the window's space, and the group itself
+/// Where each item of a group sits, by id, in the owning view's space, and the group itself
 @MainActor @Observable
 final class ScrubFrames {
   var frames: [AnyHashable: CGRect] = [:]
@@ -146,6 +195,19 @@ final class ScrubFrames {
     guard self.bounds != bounds else { return }
     self.bounds = bounds
   }
+
+  /// The item under a point; where frames overlap (one item fading out over another), the
+  /// one whose center is nearest, so the answer never depends on the order they came in
+  func item(at point: CGPoint) -> AnyHashable? {
+    frames
+      .filter { $0.value.contains(point) }
+      .min { lhs, rhs in
+        let l = hypot(lhs.value.midX - point.x, lhs.value.midY - point.y)
+        let r = hypot(rhs.value.midX - point.x, rhs.value.midY - point.y)
+        return l == r ? lhs.value.minX + lhs.value.minY < rhs.value.minX + rhs.value.minY : l < r
+      }?
+      .key
+  }
 }
 
 extension EnvironmentValues {
@@ -156,16 +218,18 @@ private struct ScrubSurface<Surface: Shape>: ViewModifier {
   let shape: Surface
   @Environment(\.scrubSession) private var session
 
-  func body(content: Content) -> some View {
-    content
-      .overlay {
-        if let session { ScrubLight(session: session).clipShape(shape) }
-      }
-      .highPriorityGesture(
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
-          .onChanged { session?.move(from: $0.startLocation, to: $0.location) }
-          .onEnded { _ in session?.lift() }
-      )
+  @ViewBuilder func body(content: Content) -> some View {
+    if let session {
+      content
+        .overlay { ScrubLight(session: session, space: session.space).clipShape(shape) }
+        .highPriorityGesture(
+          DragGesture(minimumDistance: 0, coordinateSpace: .named(session.space))
+            .onChanged { session.move(from: $0.startLocation, to: $0.location) }
+            .onEnded { _ in session.lift() }
+        )
+    } else {
+      content
+    }
   }
 }
 
@@ -173,6 +237,7 @@ private struct ScrubSurface<Surface: Shape>: ViewModifier {
 /// Keeping it outside the groups also preserves its position as the pill becomes a menu.
 private struct ScrubLight: View {
   let session: ScrubSession
+  let space: UUID
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.floatingTabBarStyle) private var style
 
@@ -180,7 +245,7 @@ private struct ScrubLight: View {
 
   var body: some View {
     GeometryReader { proxy in
-      let bounds = proxy.frame(in: .global)
+      let bounds = proxy.frame(in: .named(space))
       let point = session.point ?? session.lastPoint ?? CGPoint(x: bounds.midX, y: bounds.midY)
       let inside = session.showsFeedback && (session.point.map { bounds.contains($0) } ?? false)
       Circle()
@@ -208,10 +273,16 @@ private struct ScrubLight: View {
 private struct ScrubItem: ViewModifier {
   let id: AnyHashable
   @Environment(\.scrubFrames) private var store
+  @Environment(\.scrubSpace) private var space
 
   func body(content: Content) -> some View {
-    content
-      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { store?.setFrame($0, for: id) }
+    let space = space
+    return content
+      .onGeometryChange(for: CGRect.self) { proxy in
+        space.map { proxy.frame(in: .named($0)) } ?? .null
+      } action: { frame in
+        if frame.isNull { store?.removeFrame(for: id) } else { store?.setFrame(frame, for: id) }
+      }
       .onDisappear { store?.removeFrame(for: id) }
   }
 }
@@ -221,26 +292,24 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
   let highlight: ScrubHighlight
   let follows: ScrubFollow
   let isEnabled: Bool
-  let ignoresHoverNear: CGPoint?
-  let hoverRadius: CGFloat
   let tapOnly: Set<ID>
-  let hoveredOut: Binding<ID?>?
+  let holds: Set<ID>
+  let onHold: (ID) -> Void
   let pick: (ID) -> Void
   @Environment(\.scrubSession) private var shared
   @Environment(\.floatingTabBarStyle) private var style
   @State private var own = ScrubSession()
+  @State private var ownSpace = UUID()
   @State private var store = ScrubFrames()
 
   private var session: ScrubSession { shared ?? own }
+  /// With a shared session a surface takes the touches; on its own the group does
+  private var ownsTouches: Bool { shared == nil }
+  private var space: UUID { shared?.space ?? ownSpace }
 
-  private var allowsHover: Bool {
-    guard let origin = ignoresHoverNear, let point = session.point else { return true }
-    return hypot(point.x - origin.x, point.y - origin.y) >= hoverRadius
-  }
-
-  /// The item under the shared finger, if it is over this group
+  /// The item under the finger, if it is over this group and not resting after a hold
   private var hovered: ID? {
-    guard isEnabled, allowsHover,
+    guard isEnabled, !session.isResting,
           let id = session.point.flatMap(item(at:)), !tapOnly.contains(id) else { return nil }
     return id
   }
@@ -249,19 +318,21 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
   private static var ride: Animation { .spring(duration: 0.22, bounce: 0) }
 
   func body(content: Content) -> some View {
-    content
+    let space = space
+    return content
       .background { marks }
       .background {
-        if shared == nil { ScrubLight(session: own) }
+        if ownsTouches { ScrubLight(session: session, space: space) }
       }
       .environment(\.scrubFrames, store)
-      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { store.setBounds($0) }
+      .environment(\.scrubSpace, space)
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(space)) } action: { store.setBounds($0) }
       // With no surface around it, the group takes its own touches
       .highPriorityGesture(
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
           .onChanged { session.move(from: $0.startLocation, to: $0.location) }
           .onEnded { _ in session.lift() },
-        isEnabled: isEnabled && shared == nil
+        isEnabled: isEnabled && ownsTouches
       )
       // The lift picks here when it landed here, whichever group's finger it was
       .onChange(of: session.lifts) {
@@ -273,16 +344,24 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
           pick(id)
         }
       }
-      .onChange(of: hovered) { _, new in hoveredOut?.wrappedValue = new }
+      // A finger resting on an item that answers a hold holds it
+      .task(id: hovered) {
+        guard let held = hovered, holds.contains(held) else { return }
+        do { try await Task.sleep(for: ScrubSession.holdDuration) } catch { return }
+        guard hovered == held else { return }
+        session.hold()
+        onHold(held)
+      }
       // A tick on each item the slide crosses, none for the one it starts on
       .sensoryFeedback(.selection, trigger: hovered) { old, new in old != nil && new != nil }
+      .coordinateSpace(.named(ownSpace))
   }
 
   private func item(at point: CGPoint) -> ID? {
-    store.frames.first { $0.value.contains(point) }?.key.base as? ID
+    store.item(at: point)?.base as? ID
   }
 
-  /// A window point in this group's own space
+  /// A point of the owning space in this group's own
   private func local(_ point: CGPoint) -> CGPoint {
     CGPoint(x: point.x - store.bounds.minX, y: point.y - store.bounds.minY)
   }
@@ -293,7 +372,7 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
 
   /// The highlight under the chosen item, or under the finger while it slides
   @ViewBuilder private var marks: some View {
-    let point = isEnabled && allowsHover && session.showsFeedback ? session.point.map(local) : nil
+    let point = isEnabled && !session.isResting && session.showsFeedback ? session.point.map(local) : nil
     let isScrubbing = point != nil
     let inside = point.map { CGRect(origin: .zero, size: store.bounds.size).contains($0) } ?? false
     ZStack(alignment: .topLeading) {

@@ -40,4 +40,45 @@ struct ScrubSessionTests {
     #expect(session.claimLift())
     #expect(!session.lastLiftWasTap)
   }
+
+  @Test func overlappingFramesPickTheNearestCenter() {
+    let frames = ScrubFrames()
+    // An item fading out still overlaps the one taking its place
+    frames.setFrame(CGRect(x: 0, y: 0, width: 100, height: 40), for: "outgoing")
+    frames.setFrame(CGRect(x: 60, y: 0, width: 100, height: 40), for: "incoming")
+
+    #expect(frames.item(at: CGPoint(x: 70, y: 20)) == AnyHashable("outgoing"))
+    #expect(frames.item(at: CGPoint(x: 90, y: 20)) == AnyHashable("incoming"))
+    #expect(frames.item(at: CGPoint(x: 200, y: 20)) == nil)
+  }
+
+  @Test func liftWhereTheHoldRestedPicksNothing() {
+    let session = ScrubSession()
+    let point = CGPoint(x: 180, y: 700)
+    session.move(from: point, to: point)
+    session.hold()
+    #expect(session.isResting)
+    // A tremor within the slop is still resting
+    session.move(from: point, to: CGPoint(x: 185, y: 700))
+    #expect(session.isResting)
+    session.lift()
+
+    #expect(!session.isResting)
+    #expect(!session.claimLift()) // The menu the hold opened stays up.
+
+    session.move(from: point, to: point)
+    session.lift()
+    #expect(session.claimLift()) // The next tap picks again.
+  }
+
+  @Test func slidingAwayFromTheHoldPicksOnLift() {
+    let session = ScrubSession()
+    let point = CGPoint(x: 180, y: 700)
+    session.move(from: point, to: point)
+    session.hold()
+    session.move(from: point, to: CGPoint(x: 180, y: 640))
+    #expect(!session.isResting)
+    session.lift()
+    #expect(session.claimLift())
+  }
 }

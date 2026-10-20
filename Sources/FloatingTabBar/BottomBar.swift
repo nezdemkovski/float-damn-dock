@@ -2,12 +2,13 @@ import SwiftUI
 
 /// Shared timings for the press, surface and returning bar content.
 private enum Motion {
-  static let pressDuration: TimeInterval = 0.06
-  static let press = Animation.easeOut(duration: pressDuration)
+  static let press = Animation.easeOut(duration: 0.06)
   static let open = Animation.spring(duration: 0.38, bounce: 0.12)
   static let heldOpen = Animation.smooth(duration: 0.28)
   static let close = Animation.smooth(duration: 0.24)
   static let barFade = Animation.easeOut(duration: 0.12)
+  /// The icons come back a beat after the card starts folding, so they land in the pill
+  static let iconsReturnDelay: TimeInterval = 0.06
 }
 
 /// The floating bar along the bottom: a glass pill of the pinned tabs with the open one under
@@ -27,13 +28,12 @@ struct BottomBar<Tab: Hashable>: View {
   @Environment(\.scrubSession) private var scrub
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var glassNamespace
-  /// The slot under a sliding finger
-  @State private var hovered: Slot?
-  /// Where a finger held on the last slot unfolded the menu: lifting there keeps the menu
-  @State private var holdPoint: CGPoint?
   @State private var dockWidth: CGFloat = 0
   @State private var searching = false
   @State private var menuPhase: MenuPhase = .closed
+  /// Counts the unfold and fold requests, so a press that finishes after the next request
+  /// does not open the menu
+  @State private var menuRequest = 0
   @State private var menuHeight: CGFloat = 0
 
   /// One visual phase: compression and expansion cannot be active independently.
@@ -59,9 +59,6 @@ struct BottomBar<Tab: Hashable>: View {
 
   /// The slot the highlight rests on
   private var current: Slot { overflowSelected ? .more : .tab(selection) }
-
-  /// Held this long on the last slot, the menu unfolds under the finger
-  private static var holdToUnfold: Duration { .milliseconds(350) }
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -168,7 +165,7 @@ struct BottomBar<Tab: Hashable>: View {
     }
     .frame(height: expanded ? openHeight : style.height, alignment: .bottom)
       .overlay(alignment: .top) {
-        TabMenu(selection: $selection, unfolded: $unfolded, model: model, expanded: expanded, holdPoint: $holdPoint)
+        TabMenu(selection: $selection, unfolded: $unfolded, model: model, expanded: expanded)
           .fixedSize(horizontal: false, vertical: true)
           .onGeometryChange(for: CGFloat.self) { $0.size.height.rounded(.up) } action: { height in
             if menuHeight != height { menuHeight = height }
@@ -179,7 +176,7 @@ struct BottomBar<Tab: Hashable>: View {
       .overlay {
         pill
           .allowsHitTesting(!unfolded)
-          .animation(reduceMotion ? nil : Motion.barFade.delay(expanded ? 0 : Motion.pressDuration)) { content in
+          .animation(reduceMotion ? nil : Motion.barFade.delay(expanded ? 0 : Motion.iconsReturnDelay)) { content in
             content.opacity(expanded ? 0 : 1)
               .blur(radius: expanded && !reduceMotion ? 4 : 0)
           }
@@ -190,7 +187,7 @@ struct BottomBar<Tab: Hashable>: View {
       .clipShape(hitShape)
       .scrubSurface(in: hitShape)
       .scaleEffect(x: menuPhase == .pressing ? 0.84 : 1, y: menuPhase == .pressing ? 0.55 : 1, anchor: .bottomTrailing)
-      .task(id: MenuRequest(open: unfolded, reduceMotion: reduceMotion)) { await animateMenu() }
+      .onChange(of: unfolded) { animateMenu() }
   }
 
   private func glassSurface<S: Shape>(height: CGFloat, tint: Color, shape: S) -> some View {
@@ -201,14 +198,12 @@ struct BottomBar<Tab: Hashable>: View {
       .glassEffectID("navigation", in: glassNamespace)
   }
 
-  private struct MenuRequest: Equatable {
-    let open: Bool
-    let reduceMotion: Bool
-  }
-
-  private func animateMenu() async {
+  /// Folds or unfolds the card. A tap first presses the pill down toward the last slot and
+  /// the card grows once that press has played out; a finger still down (a hold, a slide)
+  /// grows it straight away, under the finger.
+  private func animateMenu() {
+    menuRequest += 1
     guard unfolded else {
-      holdPoint = nil
       withAnimation(reduceMotion ? nil : Motion.close) { menuPhase = .closed }
       return
     }
@@ -216,16 +211,17 @@ struct BottomBar<Tab: Hashable>: View {
       menuPhase = .open
       return
     }
-
-    let held = scrub?.point != nil
-    if menuPhase != .open && !held {
-      withAnimation(Motion.press) { menuPhase = .pressing }
-      // This is the visible press feedback, not a wait for layout or glass to settle.
-      // The task is cancelled when the requested presentation changes.
-      do { try await Task.sleep(for: .seconds(Motion.pressDuration)) } catch { return }
+    guard menuPhase != .open, scrub?.point == nil else {
+      withAnimation(Motion.heldOpen) { menuPhase = .open }
+      return
     }
-    guard !Task.isCancelled else { return }
-    withAnimation(held ? Motion.heldOpen : Motion.open) { menuPhase = .open }
+    let request = menuRequest
+    withAnimation(Motion.press, completionCriteria: .logicallyComplete) {
+      menuPhase = .pressing
+    } completion: {
+      guard request == menuRequest, unfolded else { return }
+      withAnimation(Motion.open) { menuPhase = .open }
+    }
   }
 
   private var pill: some View {
@@ -241,20 +237,16 @@ struct BottomBar<Tab: Hashable>: View {
       moreSlot
         .scrubItem(Slot.more)
     }
-    .scrubGroup(Slot.self, selected: current, highlight: .capsule, follows: .finger, isEnabled: !unfolded, hovered: $hovered) { slot in
+    .scrubGroup(
+      Slot.self, selected: current, highlight: .capsule, follows: .finger, isEnabled: !unfolded,
+      // A finger that rests on the last slot unfolds the menu without lifting, and can slide
+      // straight on into it
+      holds: [.more], onHold: { _ in unfolded = true }
+    ) { slot in
       switch slot {
       case .tab(let tab): model.open(tab, selection: $selection)
       case .more: unfolded = true
       }
-    }
-    // A finger that stays on the last slot unfolds the menu without lifting, and can slide
-    // straight on into it
-    .task(id: hovered) {
-      guard !unfolded, hovered == .more else { return }
-      try? await Task.sleep(for: Self.holdToUnfold)
-      guard !Task.isCancelled, !unfolded, hovered == .more else { return }
-      holdPoint = scrub?.point
-      unfolded = true
     }
     .padding(style.inset)
     .frame(height: style.height)

@@ -10,10 +10,7 @@ struct TabMenu<Tab: Hashable>: View {
   let model: TabBarModel<Tab>
   /// Content fades in after the surface starts expanding, and out as it collapses.
   let expanded: Bool
-  /// Where a held finger unfolded the menu: a lift there, without a slide, keeps the menu
-  @Binding var holdPoint: CGPoint?
   @Environment(\.floatingTabBarStyle) private var style
-  @Environment(\.scrubSession) private var scrub
   @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -43,7 +40,7 @@ struct TabMenu<Tab: Hashable>: View {
     }
     .scrubGroup(
       Item.self, selected: .tab(selection), highlight: .capsule, follows: .item,
-      isEnabled: unfolded, ignoresHoverNear: holdPoint, hoverRadius: 12, tapOnly: [.header]
+      isEnabled: unfolded, tapOnly: [.header]
     ) { pick($0) }
     .frame(maxWidth: .infinity)
     .allowsHitTesting(unfolded)
@@ -112,13 +109,9 @@ struct TabMenu<Tab: Hashable>: View {
     return expanded ? .easeOut(duration: 0.16).delay(delay) : .easeOut(duration: 0.1)
   }
 
-  /// Opens the tab (or the header's place) and folds the menu. A lift where the held finger
-  /// unfolded it, without a slide, is not a pick: the menu stays for the finger to come back.
+  /// Opens the tab (or the header's place) and folds the menu. A lift where a held finger
+  /// unfolded the menu, without a slide, never reaches here: the finger only rested.
   private func pick(_ item: Item) {
-    if let hold = holdPoint {
-      holdPoint = nil
-      if let lift = scrub?.liftPoint, hypot(lift.x - hold.x, lift.y - hold.y) < 12 { return }
-    }
     switch item {
     case .header:
       model.menuHeader?.action()
