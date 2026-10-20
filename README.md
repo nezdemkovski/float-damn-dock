@@ -1,7 +1,7 @@
 <h1 align="center">Float, damn dock!</h1>
 
 <p align="center">
-  A floating Liquid Glass tab bar for SwiftUI that you can scrub with a finger.
+  A floating Liquid Glass tab bar for SwiftUI.
 </p>
 
 <p align="center">
