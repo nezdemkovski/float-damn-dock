@@ -115,11 +115,16 @@ struct SideBar<Tab: Hashable>: View {
     VStack(spacing: style.gap) {
       pill
       if search != nil {
-        circleButton(labels.search, symbol: "magnifyingglass", identifier: "search") { searching = true }
+        GlassCircleButton(
+          title: labels.search, systemImage: "magnifyingglass", identifier: "search", namespace: glassNamespace
+        ) { searching = true }
           .transition(.opacity)
       }
       if let accessory = model.accessory {
-        circleButton(accessory.title, symbol: accessory.systemImage, identifier: accessory.identifier, action: accessory.action)
+        GlassCircleButton(
+          title: accessory.title, systemImage: accessory.systemImage, identifier: accessory.identifier,
+          namespace: glassNamespace, action: accessory.action
+        )
       }
     }
     .animation(.smooth(duration: 0.25), value: search != nil)
@@ -152,21 +157,5 @@ struct SideBar<Tab: Hashable>: View {
       }
       .clipShape(shape)
       .scrubSurface(in: shape)
-  }
-
-  /// A round glass button, as the bottom bar's search and accessory buttons
-  private func circleButton(_ title: String, symbol: String, identifier: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: style.buttonIconSize, weight: .regular))
-        .foregroundStyle(style.label)
-        .frame(width: style.height, height: style.height)
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .glassEffect(.regular.interactive(), in: .circle)
-    .glassEffectID(identifier, in: glassNamespace)
-    .accessibilityLabel(title)
-    .accessibilityIdentifier("tabbar.\(identifier)")
   }
 }

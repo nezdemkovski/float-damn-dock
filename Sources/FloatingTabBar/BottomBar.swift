@@ -28,7 +28,6 @@ struct BottomBar<Tab: Hashable>: View {
   @Environment(\.scrubSession) private var scrub
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var glassNamespace
-  @State private var dockWidth: CGFloat = 0
   @State private var searching = false
   @State private var menuPhase: MenuPhase = .closed
   /// Counts the unfold and fold requests, so a press that finishes after the next request
@@ -71,68 +70,43 @@ struct BottomBar<Tab: Hashable>: View {
     }
     // Search is replaced without retaining an outgoing focused field or glass surface.
     // The safe-area bar follows the system keyboard animation on its own.
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { dockWidth = $0 }
     .padding(.horizontal, style.horizontalPadding)
     .padding(.vertical, style.verticalPadding)
     .onChange(of: search?.source) { searching = false }
   }
 
-  /// Keep the baseline of the pinned slots plus the last one when the last pinned tab gives
-  /// its space to the separate search button. The removed slot plus the original gap must fit
-  /// one button and two equal gaps.
-  private var controlGap: CGFloat {
-    guard reservesSearchSpace, dockWidth > 0 else { return style.gap }
-    let accessories = model.accessory == nil ? 0 : style.height + style.gap
-    let slotWidth = (dockWidth - accessories - 2 * style.inset) / CGFloat(model.pinned.count + 1)
-    return max(0, (slotWidth + style.gap - style.height) / 2)
-  }
-
   private var controls: some View {
-    HStack(alignment: .bottom, spacing: 0) {
+    DockLayout(
+      slots: model.pinned.count + 1, searchTakesSlot: reservesSearchSpace,
+      inset: style.inset, gap: style.gap, button: style.height
+    ) {
       morphing
+        .dockRole(.pill)
         .transition(.opacity)
       if search != nil {
-        // Keep its bottom-aligned geometry alive while the menu collapses. Native
-        // glass renders outside ordinary opacity, so disable the material as well.
-        dockButton(labels.search, symbol: "magnifyingglass", identifier: "search", visible: showsSearchButton) {
+        // Stays laid out while the menu is open, so its glass keeps the bottom-aligned
+        // origin; it leaves before the surface grows over it and comes back as it folds.
+        GlassCircleButton(
+          title: labels.search, systemImage: "magnifyingglass", identifier: "search",
+          visible: showsSearchButton, hideAnimation: reduceMotion ? nil : Motion.press,
+          namespace: glassNamespace
+        ) {
           unfolded = false
           searching = true
         }
-        .frame(width: reservesSearchSpace ? style.height : 0, alignment: .trailing)
-        .padding(.leading, reservesSearchSpace ? controlGap : 0)
+        .dockRole(.search)
+        .transition(.opacity)
       }
       if let accessory = model.accessory {
-        dockButton(accessory.title, symbol: accessory.systemImage, identifier: accessory.identifier, action: accessory.action)
-          .padding(.leading, controlGap)
+        GlassCircleButton(
+          title: accessory.title, systemImage: accessory.systemImage, identifier: accessory.identifier,
+          namespace: glassNamespace, action: accessory.action
+        )
+        .dockRole(.accessory)
+        .transition(.opacity)
       }
     }
     .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: search != nil)
-  }
-
-  private func dockButton(_ title: String, symbol: String, identifier: String, visible: Bool = true, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: style.buttonIconSize, weight: .regular))
-        .foregroundStyle(style.label)
-        .frame(width: style.height, height: style.height)
-        .contentShape(Circle())
-    }
-      .buttonStyle(.plain)
-      .opacity(visible ? 1 : 0)
-      .glassEffect(visible ? .regular.interactive() : .identity, in: .circle)
-      .allowsHitTesting(visible)
-      .accessibilityHidden(!visible)
-      .accessibilityLabel(title)
-      .glassEffectID(identifier, in: glassNamespace)
-      // Standalone buttons fade in place; only the navigation surface morphs into the menu.
-      .glassEffectTransition(.identity)
-      .accessibilityIdentifier("tabbar.\(identifier)")
-      .transaction { transaction in
-        // Exit before the surface expands; reappear in the shared closing transaction
-        // so the glass keeps the same vertical origin as the bottom-aligned controls.
-        if !visible { transaction.animation = reduceMotion ? nil : Motion.press }
-      }
-      .transition(.opacity)
   }
 
   /// Both contents stay mounted while the glass morphs between two stable surfaces. The
