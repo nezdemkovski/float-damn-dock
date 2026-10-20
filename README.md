@@ -4,7 +4,7 @@ A floating Liquid Glass tab bar for SwiftUI, in place of the system's.
 
 - **Bottom (compact width):** a glass pill of your pinned tabs. Its last slot unfolds a menu with every tab: the pill grows into a card, and folds back the same way.
 - **Side (regular width):** the bar stands up beside the pages and holds every tab.
-- **Scrub:** hold a finger down and slide across the bar. The highlight rides under the finger, a soft light follows it, a tick marks each tab it crosses, and lifting opens the tab under it. Hold on the last slot to unfold the menu, then keep sliding into it.
+- **Scrub:** hold a finger down and slide across the bar. The highlight rides under the finger, a soft light follows it, a tick marks each tab it crosses, and lifting opens the tab under it. Rest the finger on a tab, or a row of the menu, and it opens there with a haptic tap, without lifting (`holdDuration` in the style says how long). Rest on the last slot to unfold the menu, then keep sliding into it.
 - Tabs you have opened stay alive under the open one, so each keeps its place.
 - The open page can hand the bar a search. The bar gets a round search button and turns into the field.
 

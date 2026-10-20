@@ -204,9 +204,15 @@ struct BottomBar<Tab: Hashable>: View {
     }
     .scrubGroup(
       Slot.self, selected: current, highlight: .capsule, follows: .finger, isEnabled: !unfolded,
-      // A finger that rests on the last slot unfolds the menu without lifting, and can slide
-      // straight on into it
-      holds: [.more], onHold: { _ in unfolded = true }
+      // A finger that rests on a slot opens it without lifting; on the last slot it unfolds
+      // the menu and can slide straight on into it
+      holds: Set(visibleTabs.map(Slot.tab) + [.more]),
+      onHold: { slot in
+        switch slot {
+        case .tab(let tab): if selection != tab { selection = tab }
+        case .more: unfolded = true
+        }
+      }
     ) { slot in
       switch slot {
       case .tab(let tab): model.open(tab, selection: $selection)

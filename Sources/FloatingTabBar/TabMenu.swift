@@ -40,7 +40,9 @@ struct TabMenu<Tab: Hashable>: View {
     }
     .scrubGroup(
       Item.self, selected: .tab(selection), highlight: .capsule, follows: .item,
-      isEnabled: unfolded, tapOnly: [.header]
+      isEnabled: unfolded, tapOnly: [.header],
+      // A finger that rests on a row opens it without lifting
+      holds: Set(model.menu.map(Item.tab)), onHold: { pick($0) }
     ) { pick($0) }
     .frame(maxWidth: .infinity)
     .allowsHitTesting(unfolded)

@@ -127,7 +127,11 @@ struct SideBar<Tab: Hashable>: View {
               .scrubItem(tab)
           }
         }
-        .scrubGroup(Tab.self, selected: selection, highlight: .capsule, follows: .finger) {
+        .scrubGroup(
+          Tab.self, selected: selection, highlight: .capsule, follows: .finger,
+          // A finger that rests on a tab opens it without lifting
+          holds: Set(model.menu), onHold: { if selection != $0 { selection = $0 } }
+        ) {
           model.open($0, selection: $selection)
         }
         .padding(style.inset)

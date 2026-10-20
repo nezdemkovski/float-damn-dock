@@ -50,6 +50,12 @@ public struct FloatingTabBarStyle: Sendable {
   public var menuLabelSize: CGFloat = 17
   public var menuPadding: CGFloat = 8
 
+  // Timing
+
+  /// How long a finger rests on a tab, or a row of the menu, before it opens there without
+  /// lifting (and the last slot unfolds the menu)
+  public var holdDuration: Duration = .milliseconds(250)
+
   public init() {}
 
   /// The space the bar takes at the foot of the pages, with its padding

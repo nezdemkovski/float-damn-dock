@@ -43,9 +43,10 @@ extension View {
 
   /// The group: draws the highlight under the chosen (or the finger's) item
   /// and picks the item the finger lifts from. `tapOnly` items respond to a short tap but
-  /// never join the drag highlight. `onHold` is called when the finger rests on one of the
-  /// `holds` items for `ScrubSession.holdDuration`; the lift that ends such a hold picks
-  /// nothing unless the finger slid on first. Resting on any other item is just a slow slide.
+  /// never join the drag highlight. `onHold` is called, with a tap of haptic feedback, when
+  /// the finger rests on one of the `holds` items for the style's `holdDuration`; the lift
+  /// that ends such a hold picks nothing unless the finger slid on first. Resting on any other
+  /// item is just a slow slide.
   public func scrubGroup<ID: Hashable>(
     _ type: ID.Type = ID.self, selected: ID?, highlight: ScrubHighlight, follows: ScrubFollow,
     isEnabled: Bool = true, tapOnly: Set<ID> = [], holds: Set<ID> = [],
@@ -84,10 +85,8 @@ public enum ScrubFollow: Sendable {
 /// of its lifts
 @MainActor @Observable
 public final class ScrubSession {
-  /// Held this long on one item, the finger holds it (see `scrubGroup(onHold:)`)
-  public static let holdDuration = Duration.milliseconds(350)
   /// A finger held this long without sliding shows the light, so a quick tap does not flash it
-  private static let feedbackDelay = Duration.milliseconds(180)
+  private static let feedbackDelay = Duration.milliseconds(120)
   /// A slide shorter than this is still a tap
   private static let tapSlop: CGFloat = 8
   /// After a hold, the finger has to slide this far before it hovers and picks again
@@ -301,6 +300,8 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
   @State private var own = ScrubSession()
   @State private var ownSpace = UUID()
   @State private var store = ScrubFrames()
+  /// Counts the holds, for their haptic tap
+  @State private var holdsFired = 0
 
   private var session: ScrubSession { shared ?? own }
   /// With a shared session a surface takes the touches; on its own the group does
@@ -347,13 +348,16 @@ private struct ScrubGroup<ID: Hashable>: ViewModifier {
       // A finger resting on an item that answers a hold holds it
       .task(id: hovered) {
         guard let held = hovered, holds.contains(held) else { return }
-        do { try await Task.sleep(for: ScrubSession.holdDuration) } catch { return }
+        do { try await Task.sleep(for: style.holdDuration) } catch { return }
         guard hovered == held else { return }
         session.hold()
+        holdsFired += 1
         onHold(held)
       }
       // A tick on each item the slide crosses, none for the one it starts on
       .sensoryFeedback(.selection, trigger: hovered) { old, new in old != nil && new != nil }
+      // A hold lands with a firmer tap than the ticks of the slide
+      .sensoryFeedback(.impact(weight: .medium), trigger: holdsFired)
       .coordinateSpace(.named(ownSpace))
   }
 
