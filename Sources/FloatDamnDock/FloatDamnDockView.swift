@@ -140,6 +140,10 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
 
   private var pages: some View {
     RetainedTabPages(selection: selection, page: page)
+      // The shell owns one dock footprint for scroll content, even across NavigationStack.
+      // Nested horizontal scrollers consume their own margins rather than inheriting it.
+      .contentMargins(.bottom, side || keyboardVisible || search.isSearching ? 0 : style.metrics.dockHeight,
+        for: .scrollContent)
       // The page under the unfolded menu stands still, so a finger sliding down the menu's
       // rows is not taken for a scroll of what is behind it
       .scrollDisabled(unfolded)
@@ -158,10 +162,10 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
       .animation(reduceMotion ? nil : style.motion.scrim, value: unfolded)
       .environment(\.floatDamnDockClearance, side || keyboardVisible ? 0 : style.metrics.dockHeight)
       .environment(\.dockSearchController, search)
-      // Reserve the dock's space and extend the native progressive scroll-edge blur.
+      // Keep the native scroll-edge treatment; the dock itself floats over the viewport.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
       // The open page's search field takes the dock's place, at the page's own foot
-      .safeAreaBar(edge: .bottom, spacing: 0) {
+      .overlay(alignment: .bottom) {
         if !side && !search.isSearching && !keyboardVisible {
           BottomBar(
             selection: $selection, unfolded: $unfolded, model: model, search: search.offered,

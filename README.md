@@ -237,3 +237,11 @@ The navigation returns after keyboard dismissal finishes, so it never sits above
 the keyboard or overlaps a page's Done toolbar. Page content continues to avoid
 the keyboard normally; an active dock search field stays above it. Floating keyboards
 that do not cover the window's bottom edge leave the navigation in place.
+
+### Scroll clearance
+
+The shell overlays bottom navigation and reserves its configured height once in
+scroll content margins. The final row can scroll fully above the dock, including
+inside a NavigationStack and on pushed List pages. Nested horizontal rails keep
+their own height. Keyboard/search modes remove the navigation clearance with the
+navigation itself. Fixed canvases can read `floatDamnDockClearance` as before.
