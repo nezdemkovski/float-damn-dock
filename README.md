@@ -229,3 +229,11 @@ Every control keeps a real button for VoiceOver and keyboards, and Reduce Motion
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+### Keyboard behavior
+
+A docked software keyboard hides the bottom navigation and its accessory button.
+The navigation returns after keyboard dismissal finishes, so it never sits above
+the keyboard or overlaps a page's Done toolbar. Page content continues to avoid
+the keyboard normally; an active dock search field stays above it. Floating keyboards
+that do not cover the window's bottom edge leave the navigation in place.

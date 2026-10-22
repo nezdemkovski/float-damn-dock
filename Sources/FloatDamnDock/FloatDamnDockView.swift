@@ -107,6 +107,7 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
   let page: (Tab) -> Page
   let side: Bool
   @State private var unfolded = false
+  @State private var keyboardVisible = false
   /// The open page's search, handed down to the pages, which show its field
   @State private var search = DockSearchController()
   /// The one finger the bar and the menu share, so a slide carries from one into the other
@@ -122,6 +123,10 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
           if side { SideBarHosting(host: .column) { sideBar } }
         }
       if side { SideBarHosting(host: .beside) { sideBar } }
+    }
+    .background { DockKeyboardObserver { keyboardVisible = $0 }.allowsHitTesting(false) }
+    .onChange(of: keyboardVisible) {
+      if keyboardVisible { unfolded = false }
     }
     .onPreferenceChange(DockSearchKey.self) { search.offer($0) }
     .onChange(of: side) {
@@ -151,13 +156,13 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
         }
       }
       .animation(reduceMotion ? nil : style.motion.scrim, value: unfolded)
-      .environment(\.floatDamnDockClearance, side ? 0 : style.metrics.dockHeight)
+      .environment(\.floatDamnDockClearance, side || keyboardVisible ? 0 : style.metrics.dockHeight)
       .environment(\.dockSearchController, search)
       // Reserve the dock's space and extend the native progressive scroll-edge blur.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
       // The open page's search field takes the dock's place, at the page's own foot
       .safeAreaBar(edge: .bottom, spacing: 0) {
-        if !side && !search.isSearching {
+        if !side && !search.isSearching && !keyboardVisible {
           BottomBar(
             selection: $selection, unfolded: $unfolded, model: model, search: search.offered,
             openSearch: search.open
