@@ -240,8 +240,10 @@ that do not cover the window's bottom edge leave the navigation in place.
 
 ### Scroll clearance
 
-The shell overlays bottom navigation and reserves its configured height once in
-scroll content margins. The final row can scroll fully above the dock, including
+The shell uses native `safeAreaBar` placement to register the dock with the
+progressive scroll-edge effect. Pages extend behind the bar while preserving the
+device's original safe area, and scroll content margins reserve the configured
+dock height exactly once. The final row can scroll fully above the dock, including
 inside a NavigationStack and on pushed List pages. Nested horizontal rails keep
 their own height. Keyboard/search modes remove the navigation clearance with the
 navigation itself. Fixed canvases can read `floatDamnDockClearance` as before.

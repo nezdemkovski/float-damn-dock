@@ -117,12 +117,15 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    HStack(spacing: 0) {
-      pages
-        .overlay {
-          if side { SideBarHosting(host: .column) { sideBar } }
-        }
-      if side { SideBarHosting(host: .beside) { sideBar } }
+    // Read the device's safe area before the custom bar adds its own inset.
+    GeometryReader { geometry in
+      HStack(spacing: 0) {
+        pages(bottomSafeArea: geometry.safeAreaInsets.bottom)
+          .overlay {
+            if side { SideBarHosting(host: .column) { sideBar } }
+          }
+        if side { SideBarHosting(host: .beside) { sideBar } }
+      }
     }
     .background { DockKeyboardObserver { keyboardVisible = $0 }.allowsHitTesting(false) }
     .onChange(of: keyboardVisible) {
@@ -138,11 +141,16 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
     .sensoryFeedback(.impact(weight: .light), trigger: unfolded)
   }
 
-  private var pages: some View {
-    RetainedTabPages(selection: selection, page: page)
+  private func pages(bottomSafeArea: CGFloat) -> some View {
+    let bottomDockVisible = !side && !keyboardVisible && !search.isSearching
+    return RetainedTabPages(selection: selection, page: page)
+      // Keep the full scrolling viewport behind the native bar. Restore only the device's
+      // original safe area; scroll-content margins own the dock footprint exactly once.
+      .safeAreaPadding(.bottom, bottomDockVisible ? bottomSafeArea : 0)
+      .ignoresSafeArea(.container, edges: bottomDockVisible ? .bottom : [])
       // The shell owns one dock footprint for scroll content, even across NavigationStack.
       // Nested horizontal scrollers consume their own margins rather than inheriting it.
-      .contentMargins(.bottom, side || keyboardVisible || search.isSearching ? 0 : style.metrics.dockHeight,
+      .contentMargins(.bottom, bottomDockVisible ? style.metrics.dockHeight : 0,
         for: .scrollContent)
       // The page under the unfolded menu stands still, so a finger sliding down the menu's
       // rows is not taken for a scroll of what is behind it
@@ -162,11 +170,12 @@ private struct TabShell<Tab: Hashable, Page: View>: View {
       .animation(reduceMotion ? nil : style.motion.scrim, value: unfolded)
       .environment(\.floatDamnDockClearance, side || keyboardVisible ? 0 : style.metrics.dockHeight)
       .environment(\.dockSearchController, search)
-      // Keep the native scroll-edge treatment; the dock itself floats over the viewport.
+      // safeAreaBar registers stationary controls with the native progressive edge effect.
+      // An overlay would draw the glass but lose the extended scroll-edge blur.
       .scrollEdgeEffectStyle(side ? .automatic : .soft, for: .bottom)
       // The open page's search field takes the dock's place, at the page's own foot
-      .overlay(alignment: .bottom) {
-        if !side && !search.isSearching && !keyboardVisible {
+      .safeAreaBar(edge: .bottom, spacing: 0) {
+        if bottomDockVisible {
           BottomBar(
             selection: $selection, unfolded: $unfolded, model: model, search: search.offered,
             openSearch: search.open
